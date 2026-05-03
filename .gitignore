@@ -12,10 +12,13 @@ coverage/
 *.pyo
 *.pyd
 *.egg-info/
+*.tsbuildinfo
 *.db
 .env
 backend/.venv/
 frontend/.vite/
+frontend/vite.config.js
+frontend/vite.config.d.ts
 backend/.pytest_cache/
 backend/.coverage
 postgres-data/
