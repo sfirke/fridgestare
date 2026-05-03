@@ -80,7 +80,13 @@ describe('App', () => {
 
     render(<App />);
 
+    const plannerTab = await screen.findByRole('tab', { name: 'Planner Week view, chat, discovery, and email.' });
+    expect(plannerTab.getAttribute('aria-selected')).toBe('true');
     expect(await screen.findByText('No weekly plan exists yet for this week.')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Generate a plan' })).not.toBeNull();
+    expect(screen.getByRole('tab', { name: 'Meals Library management and meal entry.' })).not.toBeNull();
+    expect(screen.getByRole('tab', { name: 'Preferences Guidance, email settings, and recurring rules.' })).not.toBeNull();
+    expect(screen.queryByText('Meal library')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Save preferences' })).toBeNull();
   });
 });

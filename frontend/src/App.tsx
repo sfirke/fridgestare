@@ -22,7 +22,15 @@ type RuleDraft = {
   active: boolean;
 };
 
+type DashboardView = 'planner' | 'meals' | 'preferences';
+
 const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+const dashboardViews: Array<{ id: DashboardView; label: string; description: string }> = [
+  { id: 'planner', label: 'Planner', description: 'Week view, chat, discovery, and email.' },
+  { id: 'meals', label: 'Meals', description: 'Library management and meal entry.' },
+  { id: 'preferences', label: 'Preferences', description: 'Guidance, email settings, and recurring rules.' },
+];
 
 const defaultPreferences: UserPreferences = {
   novel_meal_ratio: 0.15,
@@ -55,12 +63,62 @@ function parseWeekFromPath(): string | null {
   return match?.[1] ?? null;
 }
 
+function parseCalendarDate(dateString: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+
+  return new Date(dateString);
+}
+
 function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  return parseCalendarDate(dateString).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 function slotLabel(slot: PlanSlot): string {
-  return `${dayNames[new Date(slot.slot_date).getDay() === 0 ? 6 : new Date(slot.slot_date).getDay() - 1]}`;
+  const dayIndex = parseCalendarDate(slot.slot_date).getDay();
+  return `${dayNames[dayIndex === 0 ? 6 : dayIndex - 1]}`;
+}
+
+function slotCardTitle(slot: PlanSlot): string {
+  if (slot.slot_type === 'empty') {
+    return 'Open slot';
+  }
+  if (slot.slot_type === 'takeout') {
+    return 'Takeout';
+  }
+  return slot.title_snapshot;
+}
+
+function slotTypeLabel(slot: PlanSlot): string {
+  if (slot.slot_type === 'empty') {
+    return 'open slot';
+  }
+  if (slot.slot_type === 'takeout') {
+    return 'takeout';
+  }
+  return slot.slot_type;
+}
+
+function slotCardSummary(slot: PlanSlot): string {
+  if (slot.slot_type === 'empty') {
+    return 'Pick a meal, reroll the planner, or discover something new.';
+  }
+  if (slot.slot_type === 'takeout') {
+    return 'Reserved for takeout.';
+  }
+  return slot.selection_reason || 'Planned for the week.';
+}
+
+function slotInspectorSummary(slot: PlanSlot): string {
+  if (slot.slot_type === 'empty') {
+    return 'This day is still open. Replace it with a library meal, reroll, or use discovery to fill the slot.';
+  }
+  if (slot.slot_type === 'takeout') {
+    return 'This day is currently marked for takeout. You can keep it, replace it with a meal, or clear the slot.';
+  }
+  return slot.selection_reason || 'Planner-selected meal for the week.';
 }
 
 function mealPayloadFromForm(form: typeof defaultMealForm) {
@@ -85,6 +143,7 @@ function mealPayloadFromForm(form: typeof defaultMealForm) {
 
 export function App() {
   const [authState, setAuthState] = useState<'loading' | 'anonymous' | 'authenticated'>('loading');
+  const [activeView, setActiveView] = useState<DashboardView>('planner');
   const [session, setSession] = useState<MeResponse | null>(null);
   const [preferencesDraft, setPreferencesDraft] = useState<UserPreferences>(defaultPreferences);
   const [rulesDraft, setRulesDraft] = useState<RuleDraft[]>([]);
@@ -151,6 +210,20 @@ export function App() {
       active = false;
     };
   }, [requestedWeek]);
+
+  useEffect(() => {
+    if (!plan) {
+      if (selectedSlotId !== null) {
+        setSelectedSlotId(null);
+      }
+      return;
+    }
+
+    const hasSelectedSlot = selectedSlotId !== null && plan.slots.some((slot) => slot.id === selectedSlotId);
+    if (!hasSelectedSlot && plan.slots.length > 0) {
+      setSelectedSlotId(plan.slots[0].id);
+    }
+  }, [plan, selectedSlotId]);
 
   function resetMessages() {
     setErrorMessage('');
@@ -397,6 +470,7 @@ export function App() {
     const tagMatches = !mealFilter.tag || meal.tags.some((tag) => tag.name.includes(mealFilter.tag.toLowerCase()));
     return complexityMatches && tagMatches;
   });
+  const selectedSlot = plan?.slots.find((slot) => slot.id === selectedSlotId) ?? null;
 
   if (authState === 'loading') {
     return (
@@ -469,8 +543,31 @@ export function App() {
       {statusMessage ? <p className="status-banner">{statusMessage}</p> : null}
       {errorMessage ? <p className="error-banner">{errorMessage}</p> : null}
 
-      <section className="dashboard-grid">
-        <section className="panel preferences-panel">
+      <section className="dashboard-nav" role="tablist" aria-label="Workspace sections">
+        {dashboardViews.map((view) => {
+          const isActive = activeView === view.id;
+          return (
+            <button
+              key={view.id}
+              id={`${view.id}-tab`}
+              className={`view-tab ${isActive ? 'is-active' : ''}`}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              aria-controls={`${view.id}-panel`}
+              onClick={() => setActiveView(view.id)}
+            >
+              <span>{view.label}</span>
+              <small>{view.description}</small>
+            </button>
+          );
+        })}
+      </section>
+
+      <section className="dashboard-content">
+        {activeView === 'preferences' ? (
+          <section className="single-panel-layout" role="tabpanel" id="preferences-panel" aria-labelledby="preferences-tab">
+            <section className="panel preferences-panel">
           <div className="panel-header">
             <h2>Preferences</h2>
             <p>Set planning guidance, complexity limits, email timing, and recurring rules.</p>
@@ -548,10 +645,10 @@ export function App() {
               </label>
             </div>
             <div className="checkbox-row">
-              <label><input type="checkbox" checked={preferencesDraft.allow_simple} onChange={(event) => setPreferencesDraft((current) => ({ ...current, allow_simple: event.target.checked }))} /> Simple</label>
-              <label><input type="checkbox" checked={preferencesDraft.allow_intermediate} onChange={(event) => setPreferencesDraft((current) => ({ ...current, allow_intermediate: event.target.checked }))} /> Intermediate</label>
-              <label><input type="checkbox" checked={preferencesDraft.allow_complex} onChange={(event) => setPreferencesDraft((current) => ({ ...current, allow_complex: event.target.checked }))} /> Complex</label>
-              <label><input type="checkbox" checked={preferencesDraft.email_enabled} onChange={(event) => setPreferencesDraft((current) => ({ ...current, email_enabled: event.target.checked }))} /> Weekly email</label>
+              <label className="checkbox-option"><input type="checkbox" checked={preferencesDraft.allow_simple} onChange={(event) => setPreferencesDraft((current) => ({ ...current, allow_simple: event.target.checked }))} /><span>Simple meals</span></label>
+              <label className="checkbox-option"><input type="checkbox" checked={preferencesDraft.allow_intermediate} onChange={(event) => setPreferencesDraft((current) => ({ ...current, allow_intermediate: event.target.checked }))} /><span>Intermediate meals</span></label>
+              <label className="checkbox-option"><input type="checkbox" checked={preferencesDraft.allow_complex} onChange={(event) => setPreferencesDraft((current) => ({ ...current, allow_complex: event.target.checked }))} /><span>Complex meals</span></label>
+              <label className="checkbox-option"><input type="checkbox" checked={preferencesDraft.email_enabled} onChange={(event) => setPreferencesDraft((current) => ({ ...current, email_enabled: event.target.checked }))} /><span>Weekly email summary</span></label>
             </div>
 
             <div className="panel-subsection">
@@ -633,9 +730,13 @@ export function App() {
 
             <button type="submit">Save preferences</button>
           </form>
-        </section>
+            </section>
+          </section>
+        ) : null}
 
-        <section className="panel meals-panel">
+        {activeView === 'meals' ? (
+          <section className="single-panel-layout" role="tabpanel" id="meals-panel" aria-labelledby="meals-tab">
+            <section className="panel meals-panel">
           <div className="panel-header">
             <h2>Meal library</h2>
             <p>Add new dinners, edit metadata, fast-enter a backlog, and export CSV.</p>
@@ -751,153 +852,187 @@ export function App() {
               </article>
             ))}
           </div>
-        </section>
+            </section>
+          </section>
+        ) : null}
 
-        <section className="panel planner-panel">
-          <div className="panel-header">
-            <h2>Weekly planner</h2>
-            <p>Drag meals between days, reroll a slot, mark takeout, chat changes, and accept discoveries.</p>
-          </div>
-
-          {plan ? (
-            <>
-              <div className="planner-toolbar">
-                <button className="secondary-button" type="button" onClick={() => void applyPlanUpdate(() => api.undoPlan(plan.id), 'Last change undone.')}>Undo last action</button>
-                <button className="secondary-button" type="button" onClick={() => void handleEmailPreview()}>Preview email</button>
-                <button className="secondary-button" type="button" onClick={() => void handleSendEmail()}>Send email</button>
+        {activeView === 'planner' ? (
+          <section className="planner-layout" role="tabpanel" id="planner-panel" aria-labelledby="planner-tab">
+            <section className="panel planner-panel">
+              <div className="panel-header planner-header">
+                <div>
+                  <h2>Weekly planner</h2>
+                  <p>Drag meals between days, reroll a slot, mark takeout, chat changes, and accept discoveries.</p>
+                </div>
+                <p className="planner-kicker">Primary workspace</p>
               </div>
-              <div className="planner-board">
-                {plan.slots.map((slot) => (
-                  <article
-                    key={slot.id}
-                    className={`slot-card ${selectedSlotId === slot.id ? 'slot-selected' : ''}`}
-                    draggable
-                    onDragStart={() => setDraggedSlotId(slot.id)}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={() => void handleDrop(slot.id)}
-                  >
-                    <div className="slot-head">
-                      <div>
-                        <p className="slot-day">{new Date(slot.slot_date).toLocaleDateString(undefined, { weekday: 'long' })}</p>
-                        <h3>{slot.title_snapshot}</h3>
-                      </div>
-                      <button className="ghost-button" type="button" onClick={() => setSelectedSlotId(slot.id)}>
-                        Discover
-                      </button>
-                    </div>
-                    <p className="slot-meta">{formatDate(slot.slot_date)} · {slot.slot_type}</p>
-                    <p className="slot-reason">{slot.selection_reason}</p>
-                    <div className="inline-select-row">
-                      <select
-                        value={selectedMealForSlot[slot.id] ?? ''}
-                        onChange={(event) => setSelectedMealForSlot((current) => ({ ...current, [slot.id]: event.target.value ? Number(event.target.value) : '' }))}
+
+              {plan ? (
+                <>
+                  <div className="planner-toolbar">
+                    <button className="secondary-button" type="button" onClick={() => void applyPlanUpdate(() => api.undoPlan(plan.id), 'Last change undone.')}>Undo last action</button>
+                    <button className="secondary-button" type="button" onClick={() => void handleEmailPreview()}>Preview email</button>
+                    <button className="secondary-button" type="button" onClick={() => void handleSendEmail()}>Send email</button>
+                  </div>
+                  <div className="planner-board">
+                    {plan.slots.map((slot) => (
+                      <article
+                        key={slot.id}
+                        className={`slot-card ${selectedSlotId === slot.id ? 'slot-selected' : ''}`}
+                        draggable
+                        onClick={() => setSelectedSlotId(slot.id)}
+                        onDragStart={() => setDraggedSlotId(slot.id)}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={() => void handleDrop(slot.id)}
                       >
-                        <option value="">Replace with meal...</option>
-                        {meals.map((meal) => (
-                          <option key={meal.id} value={meal.id}>{meal.title}</option>
-                        ))}
-                      </select>
-                      <button className="secondary-button" type="button" onClick={() => void handleSelectMealForSlot(slot.id)}>Set</button>
+                        <div className="slot-head">
+                          <div>
+                            <p className="slot-day">{slotLabel(slot)}</p>
+                            <h3>{slotCardTitle(slot)}</h3>
+                          </div>
+                          <button className={`slot-cta ${selectedSlotId === slot.id ? 'is-selected' : ''}`} type="button" onClick={() => setSelectedSlotId(slot.id)}>
+                            {selectedSlotId === slot.id ? 'Selected' : 'Open slot'}
+                          </button>
+                        </div>
+                        <p className="slot-meta">{formatDate(slot.slot_date)} · {slotTypeLabel(slot)}</p>
+                        <p className="slot-summary">{slotCardSummary(slot)}</p>
+                        <div className="slot-footer">
+                          {slot.outcome_status ? <span className="outcome-pill">Outcome: {slot.outcome_status}</span> : <span className="subtle-copy">Drag to reorder the week.</span>}
+                          {selectedSlotId === slot.id ? <span className="selection-pill">Discovery and actions ready</span> : null}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  <details className="explanation-panel">
+                    <summary>Planner explanation</summary>
+                    <pre>{plan.planner_explanation}</pre>
+                  </details>
+                </>
+              ) : (
+                <div className="empty-state">
+                  <p>No weekly plan exists yet for this week.</p>
+                  <button type="button" onClick={() => void handleGeneratePlan(false)}>Generate a plan</button>
+                </div>
+              )}
+            </section>
+
+            <section className="panel side-panel">
+              <div className="panel-header">
+                <h2>Slot details and discovery</h2>
+                <p>Focus one day at a time to replace meals, reroll, discover something new, or record the outcome.</p>
+              </div>
+
+              <div className="panel-subsection slot-inspector">
+                <div className="section-header-inline">
+                  <h3>{selectedSlot ? `${slotLabel(selectedSlot)} details` : 'Choose a day'}</h3>
+                  {selectedSlot ? <span className="selection-pill">{slotCardTitle(selectedSlot)}</span> : null}
+                </div>
+                {plan && selectedSlot ? (
+                  <>
+                    <p className="slot-meta">{formatDate(selectedSlot.slot_date)} · {slotTypeLabel(selectedSlot)}</p>
+                    <p className="slot-reason">{slotInspectorSummary(selectedSlot)}</p>
+                    <label>
+                      <span>Replace with a library meal</span>
+                      <div className="inline-select-row">
+                        <select
+                          value={selectedMealForSlot[selectedSlot.id] ?? ''}
+                          onChange={(event) => setSelectedMealForSlot((current) => ({ ...current, [selectedSlot.id]: event.target.value ? Number(event.target.value) : '' }))}
+                        >
+                          <option value="">Choose a meal...</option>
+                          {meals.map((meal) => (
+                            <option key={meal.id} value={meal.id}>{meal.title}</option>
+                          ))}
+                        </select>
+                        <button className="secondary-button" type="button" onClick={() => void handleSelectMealForSlot(selectedSlot.id)}>Set meal</button>
+                      </div>
+                    </label>
+                    <div className="slot-actions inspector-actions">
+                      <button className="secondary-button" type="button" onClick={() => void applyPlanUpdate(() => api.rerollSlot(plan.id, selectedSlot.id), 'Slot rerolled.')}>Reroll</button>
+                      <button className="secondary-button" type="button" onClick={() => void applyPlanUpdate(() => api.setSlot(plan.id, { slot_id: selectedSlot.id, slot_type: 'takeout' }), 'Slot marked as takeout.')}>Takeout</button>
+                      <button className="secondary-button" type="button" onClick={() => void applyPlanUpdate(() => api.setSlot(plan.id, { slot_id: selectedSlot.id, slot_type: 'empty' }), 'Slot cleared.')}>Clear slot</button>
                     </div>
-                    <div className="slot-actions">
-                      <button className="secondary-button" type="button" onClick={() => void applyPlanUpdate(() => api.rerollSlot(plan.id, slot.id), 'Slot rerolled.')}>Reroll</button>
-                      <button className="secondary-button" type="button" onClick={() => void applyPlanUpdate(() => api.setSlot(plan.id, { slot_id: slot.id, slot_type: 'takeout' }), 'Slot marked as takeout.')}>Takeout</button>
-                      <button className="secondary-button" type="button" onClick={() => void applyPlanUpdate(() => api.setSlot(plan.id, { slot_id: slot.id, slot_type: 'empty' }), 'Slot cleared.')}>Clear</button>
+                    <div className="slot-actions compact-row inspector-actions">
+                      <button className="ghost-button" type="button" onClick={() => void applyPlanUpdate(() => api.updateOutcome(plan.id, selectedSlot.id, 'cooked'), 'Outcome marked cooked.')}>Cooked</button>
+                      <button className="ghost-button" type="button" onClick={() => void applyPlanUpdate(() => api.updateOutcome(plan.id, selectedSlot.id, 'skipped'), 'Outcome marked skipped.')}>Skipped</button>
+                      <button className="ghost-button" type="button" onClick={() => void applyPlanUpdate(() => api.updateOutcome(plan.id, selectedSlot.id, null), 'Outcome cleared.')}>Clear outcome</button>
                     </div>
-                    <div className="slot-actions compact-row">
-                      <button className="ghost-button" type="button" onClick={() => void applyPlanUpdate(() => api.updateOutcome(plan.id, slot.id, 'cooked'), 'Outcome marked cooked.')}>Cooked</button>
-                      <button className="ghost-button" type="button" onClick={() => void applyPlanUpdate(() => api.updateOutcome(plan.id, slot.id, 'skipped'), 'Outcome marked skipped.')}>Skipped</button>
-                      <button className="ghost-button" type="button" onClick={() => void applyPlanUpdate(() => api.updateOutcome(plan.id, slot.id, null), 'Outcome cleared.')}>Clear outcome</button>
-                    </div>
-                    {slot.outcome_status ? <p className="slot-outcome">Outcome: {slot.outcome_status}</p> : null}
+                    {selectedSlot.outcome_status ? <p className="slot-outcome">Outcome: {selectedSlot.outcome_status}</p> : null}
+                  </>
+                ) : (
+                  <p className="subtle-copy">Select a day in the planner to unlock meal replacement, discovery, and outcome controls.</p>
+                )}
+              </div>
+
+              <div className="panel-subsection">
+                <div className="section-header-inline">
+                  <h3>{selectedSlot ? `Discovery for ${slotLabel(selectedSlot)}` : 'Discovery'}</h3>
+                  <span className="subtle-copy">{selectedSlot ? slotCardTitle(selectedSlot) : 'Select a slot to target discovery'}</span>
+                </div>
+                <label>
+                  <span>Discovery prompt</span>
+                  <input
+                    value={discoveryQuery}
+                    onChange={(event) => setDiscoveryQuery(event.target.value)}
+                    placeholder="easy vegetarian soup"
+                    disabled={!selectedSlot}
+                  />
+                </label>
+                <button type="button" onClick={() => void handleDiscoverySuggest()} disabled={!selectedSlotId}>
+                  Suggest discovered meals
+                </button>
+                <div className="discovery-list">
+                  {discoveryCandidates.map((candidate) => (
+                    <article key={candidate.id} className="discovery-card">
+                      <div>
+                        <h3>{candidate.title}</h3>
+                        <p>{candidate.summary}</p>
+                        <p className="slot-meta">{candidate.complexity} · <a href={candidate.source_url} target="_blank" rel="noreferrer">source</a></p>
+                        <p className="slot-reason">{candidate.reasoning}</p>
+                      </div>
+                      <button type="button" onClick={() => void handleAcceptDiscovery(candidate.id)}>Accept into library and slot</button>
+                    </article>
+                  ))}
+                </div>
+              </div>
+
+              <form className="stacked-form" onSubmit={handleChatSubmit}>
+                <label>
+                  <span>Chat with the planner</span>
+                  <textarea
+                    value={chatMessage}
+                    onChange={(event) => setChatMessage(event.target.value)}
+                    rows={3}
+                    placeholder="Put a soup on Tuesday, swap Wednesday and Thursday, make Friday simpler..."
+                  />
+                </label>
+                <button type="submit" disabled={!plan}>Send chat edit</button>
+              </form>
+              <div className="chat-history">
+                {chatHistory.map((entry, index) => (
+                  <article key={`${entry.role}-${index}`} className={`chat-bubble ${entry.role}`}>
+                    <strong>{entry.role === 'user' ? 'You' : 'Planner'}</strong>
+                    <p>{entry.message}</p>
                   </article>
                 ))}
               </div>
-              <details className="explanation-panel">
-                <summary>Planner explanation</summary>
-                <pre>{plan.planner_explanation}</pre>
-              </details>
-            </>
-          ) : (
-            <div className="empty-state">
-              <p>No weekly plan exists yet for this week.</p>
-              <button type="button" onClick={() => void handleGeneratePlan(false)}>Generate a plan</button>
-            </div>
-          )}
-        </section>
 
-        <section className="panel side-panel">
-          <div className="panel-header">
-            <h2>Chat and discovery</h2>
-            <p>Ask for a change in plain language or pull in something novel for a specific slot.</p>
-          </div>
-          <form className="stacked-form" onSubmit={handleChatSubmit}>
-            <label>
-              <span>Chat with the planner</span>
-              <textarea
-                value={chatMessage}
-                onChange={(event) => setChatMessage(event.target.value)}
-                rows={3}
-                placeholder="Put a soup on Tuesday, swap Wednesday and Thursday, make Friday simpler..."
-              />
-            </label>
-            <button type="submit" disabled={!plan}>Send chat edit</button>
-          </form>
-          <div className="chat-history">
-            {chatHistory.map((entry, index) => (
-              <article key={`${entry.role}-${index}`} className={`chat-bubble ${entry.role}`}>
-                <strong>{entry.role === 'user' ? 'You' : 'Planner'}</strong>
-                <p>{entry.message}</p>
-              </article>
-            ))}
-          </div>
-
-          <div className="panel-subsection">
-            <div className="section-header-inline">
-              <h3>Discovery</h3>
-              <span className="subtle-copy">{selectedSlotId ? `targeting slot #${selectedSlotId}` : 'pick a slot from the planner first'}</span>
-            </div>
-            <label>
-              <span>Discovery prompt</span>
-              <input
-                value={discoveryQuery}
-                onChange={(event) => setDiscoveryQuery(event.target.value)}
-                placeholder="easy vegetarian soup"
-              />
-            </label>
-            <button type="button" onClick={() => void handleDiscoverySuggest()} disabled={!selectedSlotId}>
-              Suggest discovered meals
-            </button>
-            <div className="discovery-list">
-              {discoveryCandidates.map((candidate) => (
-                <article key={candidate.id} className="discovery-card">
-                  <div>
-                    <h3>{candidate.title}</h3>
-                    <p>{candidate.summary}</p>
-                    <p className="slot-meta">{candidate.complexity} · <a href={candidate.source_url} target="_blank" rel="noreferrer">source</a></p>
-                    <p className="slot-reason">{candidate.reasoning}</p>
-                  </div>
-                  <button type="button" onClick={() => void handleAcceptDiscovery(candidate.id)}>Accept into library and slot</button>
-                </article>
-              ))}
-            </div>
-          </div>
-
-          <div className="panel-subsection">
-            <div className="section-header-inline">
-              <h3>Email preview</h3>
-              {emailPreview ? <span className="subtle-copy">{emailPreview.delivery_mode}</span> : null}
-            </div>
-            {emailPreview ? (
-              <>
-                <p className="slot-meta">{emailPreview.subject}</p>
-                <div className="email-preview" dangerouslySetInnerHTML={{ __html: emailPreview.html }} />
-              </>
-            ) : (
-              <p className="subtle-copy">Preview the weekly summary email from the planner panel.</p>
-            )}
-          </div>
-        </section>
+              <div className="panel-subsection">
+                <div className="section-header-inline">
+                  <h3>Email preview</h3>
+                  {emailPreview ? <span className="subtle-copy">{emailPreview.delivery_mode}</span> : null}
+                </div>
+                {emailPreview ? (
+                  <>
+                    <p className="slot-meta">{emailPreview.subject}</p>
+                    <div className="email-preview" dangerouslySetInnerHTML={{ __html: emailPreview.html }} />
+                  </>
+                ) : (
+                  <p className="subtle-copy">Preview the weekly summary email from the planner panel.</p>
+                )}
+              </div>
+            </section>
+          </section>
+        ) : null}
       </section>
     </main>
   );
