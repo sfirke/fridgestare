@@ -3,16 +3,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App';
 
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
 describe('App', () => {
   beforeEach(() => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () =>
-        new Response(JSON.stringify({ detail: 'unauthorized' }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      ),
+      vi.fn(async () => jsonResponse({ detail: 'unauthorized' }, 401)),
     );
     Object.defineProperty(document, 'cookie', {
       configurable: true,
@@ -25,5 +27,60 @@ describe('App', () => {
     render(<App />);
     expect(await screen.findByText('Sign in')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Enter the pantry' })).not.toBeNull();
+  });
+
+  it('renders the empty planner state when the current week has no plan yet', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn()
+        .mockResolvedValueOnce(
+          jsonResponse({
+            me: {
+              user: { id: 1, email: 'sam@example.com', is_admin: true, created_at: '2026-05-03T00:00:00Z' },
+              preferences: {
+                novel_meal_ratio: 0.15,
+                takeout_frequency_per_week: 1,
+                allow_simple: true,
+                allow_intermediate: true,
+                allow_complex: true,
+                planning_guidance_text: '',
+                dietary_notes: '',
+                email_enabled: false,
+                email_day_of_week: 6,
+                email_local_time: '09:00:00',
+                updated_at: '2026-05-03T00:00:00Z',
+              },
+              recurring_rules: [],
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({
+            user: { id: 1, email: 'sam@example.com', is_admin: true, created_at: '2026-05-03T00:00:00Z' },
+            preferences: {
+              novel_meal_ratio: 0.15,
+              takeout_frequency_per_week: 1,
+              allow_simple: true,
+              allow_intermediate: true,
+              allow_complex: true,
+              planning_guidance_text: '',
+              dietary_notes: '',
+              email_enabled: false,
+              email_day_of_week: 6,
+              email_local_time: '09:00:00',
+              updated_at: '2026-05-03T00:00:00Z',
+            },
+            recurring_rules: [],
+          }),
+        )
+        .mockResolvedValueOnce(jsonResponse([]))
+        .mockResolvedValueOnce(jsonResponse([]))
+        .mockResolvedValueOnce(jsonResponse({ detail: 'No plan for the current week' }, 404)),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByText('No weekly plan exists yet for this week.')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Generate a plan' })).not.toBeNull();
   });
 });

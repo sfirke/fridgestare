@@ -47,17 +47,34 @@ cd ../frontend
 npm install
 ```
 
-4. Start PostgreSQL with Docker Compose, then run the backend and frontend locally.
+4. Start the full stack with Docker Compose.
 
 ```bash
+docker compose up --build
+docker compose exec backend python -m app.cli.main system init-db
+docker compose exec backend python -m app.cli.main users create --email sam@example.com --password tremendous-albatross --admin
+```
+
+The frontend runs at `http://localhost:5173` and talks to the backend at `http://localhost:8000`.
+
+## Optional Local Backend/Frontend
+
+If you want the database in Docker but the backend and frontend on the host, keep `.env` for Compose and add host-local overrides in `.env.local`.
+
+```bash
+cat <<'EOF' > .env.local
+DATABASE_URL=postgresql+psycopg://fridgestare:fridgestare@localhost:5432/fridgestare
+TEST_DATABASE_URL=postgresql+psycopg://fridgestare:fridgestare@localhost:5432/fridgestare_test
+EOF
+
 docker compose up db
 cd backend && .venv/bin/python -m app.cli.main system init-db
-cd backend && .venv/bin/python -m app.cli.main users create --email you@example.com --password change-me --admin
+cd backend && .venv/bin/python -m app.cli.main users create --email sam@example.com --password tremendous-albatross --admin
 cd backend && .venv/bin/python -m uvicorn app.main:app --reload
 cd frontend && npm run dev
 ```
 
-The frontend runs at `http://localhost:5173` and proxies API requests to `http://localhost:8000`.
+`.env.local` is loaded after `.env`, so the host-local database URLs override the Compose-only `db` hostname.
 
 ## Useful Commands
 
@@ -80,6 +97,8 @@ make compose-up
 - `MAILGUN_API_KEY`: optional, enables live email delivery
 - `MAILGUN_DOMAIN`: optional, required with Mailgun API key
 - `MAIL_FROM_ADDRESS`: sender address used for plan emails
+- `BACKEND_CORS_ORIGINS`: comma-separated origins or a JSON array
+- `VITE_API_PROXY_TARGET`: optional frontend dev proxy target; Compose sets this to `http://backend:8000`, host-local frontend can leave the default `http://localhost:8000`
 - `SCHEDULER_ENABLED`: set to `true` to enable the background scheduler
 
 When OpenRouter, Tavily, or Mailgun are not configured, Fridgestare still works with local fallback behavior.
