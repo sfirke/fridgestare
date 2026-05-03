@@ -23,8 +23,14 @@ class Meal(TimestampMixin, Base):
     agent_sourced: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    tag_links: Mapped[list["MealTagLink"]] = relationship(cascade="all, delete-orphan")
-    season_preferences: Mapped[list["MealSeasonPreference"]] = relationship(cascade="all, delete-orphan")
+    tag_links: Mapped[list["MealTagLink"]] = relationship(
+        back_populates="meal",
+        cascade="all, delete-orphan",
+    )
+    season_preferences: Mapped[list["MealSeasonPreference"]] = relationship(
+        back_populates="meal",
+        cascade="all, delete-orphan",
+    )
 
 
 class MealTag(TimestampMixin, Base):
@@ -42,6 +48,9 @@ class MealTagLink(Base):
     meal_id: Mapped[int] = mapped_column(ForeignKey("meals.id", ondelete="CASCADE"), primary_key=True)
     tag_id: Mapped[int] = mapped_column(ForeignKey("meal_tags.id", ondelete="CASCADE"), primary_key=True)
 
+    meal: Mapped[Meal] = relationship(back_populates="tag_links")
+    tag: Mapped[MealTag] = relationship()
+
 
 class MealSeasonPreference(Base):
     __tablename__ = "meal_season_preferences"
@@ -49,3 +58,5 @@ class MealSeasonPreference(Base):
     meal_id: Mapped[int] = mapped_column(ForeignKey("meals.id", ondelete="CASCADE"), primary_key=True)
     season: Mapped[str] = mapped_column(String(20), primary_key=True)
     weight: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+
+    meal: Mapped[Meal] = relationship(back_populates="season_preferences")

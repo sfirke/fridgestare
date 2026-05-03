@@ -1,0 +1,128 @@
+from datetime import date
+
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_current_user, require_csrf
+from app.db.session import get_db
+from app.models.user import User
+from app.schemas.plan import (
+    GeneratePlanRequest,
+    MoveSlotRequest,
+    OutcomeStatusUpdate,
+    PlanOut,
+    RerollSlotRequest,
+    SetSlotRequest,
+)
+from app.services.planner import compute_week_start
+from app.services.plans import (
+    current_week_plan,
+    generate_week_plan,
+    load_plan_by_week,
+    load_plan_for_user,
+    move_slot_contents,
+    plan_to_schema,
+    reroll_slot,
+    set_slot_contents,
+    undo_last_action,
+    update_outcome_status,
+)
+
+router = APIRouter()
+
+
+@router.get("/current", response_model=PlanOut)
+def get_current_plan(
+    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PlanOut:
+    plan = current_week_plan(session, current_user)
+    if plan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No plan for the current week")
+    return PlanOut(**plan_to_schema(plan))
+
+
+@router.get("/week/{week_start}", response_model=PlanOut)
+def get_week_plan(
+    week_start: date,
+    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PlanOut:
+    plan = load_plan_by_week(session, current_user.id, week_start)
+    if plan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
+    return PlanOut(**plan_to_schema(plan))
+
+
+@router.post("/generate", response_model=PlanOut)
+def post_generate_plan(
+    payload: GeneratePlanRequest,
+    _: None = Depends(require_csrf),
+    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PlanOut:
+    week_start = payload.week_start_date or compute_week_start(date.today(), current_user.week_starts_on)
+    plan = generate_week_plan(
+        session,
+        current_user,
+        week_start_date=week_start,
+        force_regenerate=payload.force_regenerate,
+    )
+    return PlanOut(**plan_to_schema(plan))
+
+
+@router.post("/{plan_id}/reroll-slot", response_model=PlanOut)
+def post_reroll_slot(
+    plan_id: int,
+    payload: RerollSlotRequest,
+    _: None = Depends(require_csrf),
+    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PlanOut:
+    return PlanOut(**plan_to_schema(reroll_slot(session, current_user, plan_id, payload.slot_id)))
+
+
+@router.post("/{plan_id}/move-slot", response_model=PlanOut)
+def post_move_slot(
+    plan_id: int,
+    payload: MoveSlotRequest,
+    _: None = Depends(require_csrf),
+    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PlanOut:
+    return PlanOut(**plan_to_schema(move_slot_contents(session, current_user, plan_id, payload)))
+
+
+@router.post("/{plan_id}/set-slot", response_model=PlanOut)
+def post_set_slot(
+    plan_id: int,
+    payload: SetSlotRequest,
+    _: None = Depends(require_csrf),
+    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PlanOut:
+    return PlanOut(**plan_to_schema(set_slot_contents(session, current_user, plan_id, payload)))
+
+
+@router.post("/{plan_id}/undo", response_model=PlanOut)
+def post_undo(
+    plan_id: int,
+    _: None = Depends(require_csrf),
+    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PlanOut:
+    return PlanOut(**plan_to_schema(undo_last_action(session, current_user, plan_id)))
+
+
+@router.post("/{plan_id}/slots/{slot_id}/outcome-status", response_model=PlanOut)
+def post_outcome_status(
+    plan_id: int,
+    slot_id: int,
+    payload: OutcomeStatusUpdate,
+    _: None = Depends(require_csrf),
+    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PlanOut:
+    return PlanOut(
+        **plan_to_schema(update_outcome_status(session, current_user, plan_id, slot_id, payload.outcome_status))
+    )

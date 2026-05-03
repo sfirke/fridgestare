@@ -42,3 +42,4 @@ def patch_schedule_rules(
     current_user: User = Depends(get_current_user),
 ) -> list[RecurringRuleOut]:
     return replace_recurring_rules(session, current_user, payload.rules)
+

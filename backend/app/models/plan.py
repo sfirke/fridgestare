@@ -1,7 +1,7 @@
 from datetime import date, datetime
 
 from sqlalchemy import Date, DateTime, ForeignKey, String, Text, UniqueConstraint, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
 
@@ -16,6 +16,12 @@ class WeeklyPlan(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(30), default="draft", nullable=False)
     generation_source: Mapped[str] = mapped_column(String(30), default="manual", nullable=False)
     planner_explanation: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+    slots: Mapped[list["PlanSlot"]] = relationship(
+        back_populates="plan",
+        cascade="all, delete-orphan",
+        order_by="PlanSlot.slot_order",
+    )
 
 
 class DiscoveredRecipeCandidate(Base):
@@ -54,3 +60,5 @@ class PlanSlot(Base):
     selection_reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
     outcome_status: Mapped[str | None] = mapped_column(String(20))
     outcome_logged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    plan: Mapped[WeeklyPlan] = relationship(back_populates="slots")

@@ -26,10 +26,10 @@
 
 ### Phase 2: Meals and Planning Backend
 
-- [ ] Implement meal CRUD, fast-add, tags, CSV export.
-- [ ] Implement deterministic planner, weekly plans, reroll, move, set, undo, and outcomes.
+- [x] Implement meal CRUD, fast-add, tags, CSV export.
+- [x] Implement deterministic planner, weekly plans, reroll, move, set, undo, and outcomes.
 - [ ] Add discovery acceptance persistence.
-- [ ] Validate backend feature slice.
+- [x] Validate backend feature slice.
 - [ ] Commit milestone.
 
 ### Phase 3: LLM, Discovery, Email, Scheduler
