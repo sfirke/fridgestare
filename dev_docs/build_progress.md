@@ -14,14 +14,14 @@
 - [x] Add Docker Compose, env template, Makefile, CI, and pre-commit config.
 - [x] Add minimal FastAPI and Vite entrypoints.
 - [x] Validate scaffold.
-- [ ] Commit milestone.
+- [x] Commit milestone.
 
 ### Phase 1: Core Domain and Auth
 
-- [ ] Implement database models and Alembic migration.
-- [ ] Add bootstrap CLI and auth/session flow.
-- [ ] Add user preferences and recurring rules endpoints.
-- [ ] Validate backend domain slice.
+- [x] Implement database models and Alembic migration.
+- [x] Add bootstrap CLI and auth/session flow.
+- [x] Add user preferences and recurring rules endpoints.
+- [x] Validate backend domain slice.
 - [ ] Commit milestone.
 
 ### Phase 2: Meals and Planning Backend

@@ -11,9 +11,12 @@ coverage/
 *.pyc
 *.pyo
 *.pyd
+*.egg-info/
+*.db
 .env
 backend/.venv/
 frontend/.vite/
 backend/.pytest_cache/
 backend/.coverage
 postgres-data/
+.vscode/

@@ -36,8 +36,8 @@ dev = [
 [project.scripts]
 fridgestare = "app.cli.main:app"
 
-[tool.setuptools]
-packages = ["app"]
+[tool.setuptools.packages.find]
+include = ["app*"]
 
 [tool.ruff]
 line-length = 100
@@ -49,6 +49,9 @@ select = ["E", "F", "I", "B", "UP", "N", "ASYNC", "RUF"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.coverage.run]
+source = ["app"]
+
 [tool.pylint.main]
 ignore = ["alembic"]
 
@@ -57,4 +60,5 @@ disable = [
   "missing-docstring",
   "too-few-public-methods",
   "duplicate-code",
+  "too-many-arguments",
 ]
