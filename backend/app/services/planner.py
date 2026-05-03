@@ -16,6 +16,10 @@ def compute_week_start(reference_date: date, week_starts_on: int) -> date:
     return reference_date - timedelta(days=offset)
 
 
+def compute_next_week_start(reference_date: date, week_starts_on: int) -> date:
+    return compute_week_start(reference_date, week_starts_on) + timedelta(days=7)
+
+
 def load_history(session: Session, user_id: int, before_week: date) -> list[PlanSlot]:
     horizon = before_week - timedelta(weeks=12)
     return (
@@ -119,7 +123,7 @@ def score_meal(
             notes.append("recently planned")
 
     if not notes:
-        notes.append("strong default candidate")
+        notes.append("fits your current plan settings")
     return score, "; ".join(notes)
 
 

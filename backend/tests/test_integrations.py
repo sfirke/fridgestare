@@ -1,3 +1,6 @@
+from datetime import date
+
+
 def setup_plan(client, csrf_token: str):
     client.post(
         "/api/meals/bulk-fast-add",
@@ -7,6 +10,7 @@ def setup_plan(client, csrf_token: str):
                 {"title": "Tomato Soup", "tags": ["soup"], "complexity": "simple"},
                 {"title": "Tuesday Tacos", "tags": ["tacos"], "complexity": "simple"},
                 {"title": "Roast Fish", "tags": ["cozy"], "complexity": "intermediate"},
+                {"title": "Braised Short Ribs", "tags": ["cozy"], "complexity": "complex"},
             ]
         },
     )
@@ -51,6 +55,24 @@ def test_chat_endpoint_edits_plan(authenticated_client: tuple) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert "Tuesday" in payload["explanation"] or "Put" in payload["explanation"]
+
+
+def test_chat_endpoint_handles_complexity_request(authenticated_client: tuple) -> None:
+    client, csrf_token = authenticated_client
+    plan = setup_plan(client, csrf_token)
+
+    response = client.post(
+        f"/api/plans/{plan['id']}/chat",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"message": "give me a complex meal on Friday"},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert "Friday" in payload["explanation"]
+    assert "complex" in payload["explanation"].lower()
+
+    friday_slot = next(slot for slot in payload["plan"]["slots"] if date.fromisoformat(slot["slot_date"]).weekday() == 4)
+    assert friday_slot["title_snapshot"] == "Braised Short Ribs"
 
 
 def test_email_preview_and_send(authenticated_client: tuple) -> None:

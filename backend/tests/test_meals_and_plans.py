@@ -147,7 +147,20 @@ def test_plan_generation_and_mutations(authenticated_client: tuple) -> None:
     assert len(fetched.json()["slots"]) == 7
 
     current = client.get("/api/plans/current")
-    assert current.status_code == 200
+    assert current.status_code == 404
 
     titles = {slot["title_snapshot"] for slot in fetched.json()["slots"]}
     assert {"Taco Soup", "Roast Chicken", "Pasta Primavera", "Takeout Night"}.intersection(titles)
+
+    next_week_start = date.today() - timedelta(days=date.today().weekday()) + timedelta(days=7)
+    generated_next = client.post(
+        "/api/plans/generate",
+        headers={"X-CSRF-Token": csrf_token},
+        json={},
+    )
+    assert generated_next.status_code == 200
+    assert generated_next.json()["week_start_date"] == str(next_week_start)
+
+    current = client.get("/api/plans/current")
+    assert current.status_code == 200
+    assert current.json()["week_start_date"] == str(next_week_start)

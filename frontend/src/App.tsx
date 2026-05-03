@@ -91,16 +91,6 @@ function slotCardTitle(slot: PlanSlot): string {
   return slot.title_snapshot;
 }
 
-function slotTypeLabel(slot: PlanSlot): string {
-  if (slot.slot_type === 'empty') {
-    return 'open slot';
-  }
-  if (slot.slot_type === 'takeout') {
-    return 'takeout';
-  }
-  return slot.slot_type;
-}
-
 function slotCardSummary(slot: PlanSlot): string {
   if (slot.slot_type === 'empty') {
     return 'Pick a meal, reroll the planner, or discover something new.';
@@ -864,7 +854,6 @@ export function App() {
                   <h2>Weekly planner</h2>
                   <p>Drag meals between days, reroll a slot, mark takeout, chat changes, and accept discoveries.</p>
                 </div>
-                <p className="planner-kicker">Primary workspace</p>
               </div>
 
               {plan ? (
@@ -890,15 +879,12 @@ export function App() {
                             <p className="slot-day">{slotLabel(slot)}</p>
                             <h3>{slotCardTitle(slot)}</h3>
                           </div>
-                          <button className={`slot-cta ${selectedSlotId === slot.id ? 'is-selected' : ''}`} type="button" onClick={() => setSelectedSlotId(slot.id)}>
-                            {selectedSlotId === slot.id ? 'Selected' : 'Open slot'}
-                          </button>
+                          {selectedSlotId === slot.id ? <span className="slot-focus-pill">In focus</span> : null}
                         </div>
-                        <p className="slot-meta">{formatDate(slot.slot_date)} · {slotTypeLabel(slot)}</p>
+                        <p className="slot-meta">{formatDate(slot.slot_date)}</p>
                         <p className="slot-summary">{slotCardSummary(slot)}</p>
                         <div className="slot-footer">
                           {slot.outcome_status ? <span className="outcome-pill">Outcome: {slot.outcome_status}</span> : <span className="subtle-copy">Drag to reorder the week.</span>}
-                          {selectedSlotId === slot.id ? <span className="selection-pill">Discovery and actions ready</span> : null}
                         </div>
                       </article>
                     ))}
@@ -910,7 +896,7 @@ export function App() {
                 </>
               ) : (
                 <div className="empty-state">
-                  <p>No weekly plan exists yet for this week.</p>
+                  <p>No weekly plan exists yet for next week.</p>
                   <button type="button" onClick={() => void handleGeneratePlan(false)}>Generate a plan</button>
                 </div>
               )}
@@ -929,7 +915,7 @@ export function App() {
                 </div>
                 {plan && selectedSlot ? (
                   <>
-                    <p className="slot-meta">{formatDate(selectedSlot.slot_date)} · {slotTypeLabel(selectedSlot)}</p>
+                    <p className="slot-meta">{formatDate(selectedSlot.slot_date)}</p>
                     <p className="slot-reason">{slotInspectorSummary(selectedSlot)}</p>
                     <label>
                       <span>Replace with a library meal</span>

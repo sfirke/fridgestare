@@ -376,28 +376,15 @@ li {
   align-items: flex-start;
 }
 
-.planner-kicker {
-  margin: 0;
+.slot-focus-pill {
   border-radius: 999px;
-  background: rgba(127, 209, 185, 0.14);
-  color: #d7fff2;
-  padding: 0.45rem 0.8rem;
-  font-size: 0.85rem;
+  background: rgba(255, 184, 108, 0.14);
+  border: 1px solid rgba(255, 184, 108, 0.3);
+  color: #ffd6ac;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.78rem;
   font-weight: 700;
   white-space: nowrap;
-}
-
-.slot-cta {
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.04);
-  color: inherit;
-  padding: 0.55rem 0.85rem;
-}
-
-.slot-cta.is-selected {
-  background: rgba(255, 184, 108, 0.14);
-  border-color: rgba(255, 184, 108, 0.3);
 }
 
 .slot-day {
@@ -573,7 +560,7 @@ li {
   }
 
   .view-tab,
-  .planner-kicker {
+  .slot-focus-pill {
     white-space: normal;
   }
 

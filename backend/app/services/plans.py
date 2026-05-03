@@ -8,7 +8,7 @@ from app.models.user import User
 from app.schemas.plan import MoveSlotRequest, SetSlotRequest
 from app.services.audit import apply_slot_snapshot, create_activity_log, get_latest_undoable_action, serialize_slot
 from app.services.meals import load_meal_for_user
-from app.services.planner import compute_week_start, generate_plan_payload, generate_slot_selection
+from app.services.planner import compute_next_week_start, generate_plan_payload, generate_slot_selection
 
 
 def plan_to_schema(plan: WeeklyPlan) -> dict:
@@ -59,7 +59,7 @@ def load_plan_by_week(session: Session, user_id: int, week_start_date: date) -> 
 
 
 def current_week_plan(session: Session, user: User) -> WeeklyPlan | None:
-    week_start = compute_week_start(date.today(), user.week_starts_on)
+    week_start = compute_next_week_start(date.today(), user.week_starts_on)
     return load_plan_by_week(session, user.id, week_start)
 
 

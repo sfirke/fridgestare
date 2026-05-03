@@ -1,3 +1,4 @@
+import logging
 import re
 from datetime import UTC, datetime
 
@@ -17,6 +18,8 @@ from app.services.plans import (
     reroll_slot,
     set_slot_contents,
 )
+
+logger = logging.getLogger("app.services.chat")
 
 WEEKDAY_INDEX = {
     "monday": 0,
@@ -56,7 +59,13 @@ def choose_meal_by_tag_or_complexity(session: Session, user_id: int, tag: str | 
     meals = query.order_by(Meal.title.asc()).all()
     if tag:
         lowered = tag.lower()
-        meals = [meal for meal in meals if lowered in meal.title.lower() or lowered in meal.notes.lower() or any(lowered == link.tag.name for link in meal.tag_links if link.tag)]
+        meals = [
+            meal
+            for meal in meals
+            if lowered in meal.title.lower()
+            or lowered in meal.notes.lower()
+            or any(lowered == link.tag.name.lower() for link in meal.tag_links if link.tag)
+        ]
     return meals[0] if meals else None
 
 
@@ -65,20 +74,41 @@ def parse_with_llm(plan_summary: dict, message: str) -> dict | None:
     adapter = OpenRouterAdapter(settings.openrouter_api_key, settings.openrouter_model)
     system_prompt = (
         "You translate meal planning chat into JSON. "
-        "Return keys action, source_day, target_day, tag, complexity, meal_title."
+        "Return keys action, source_day, target_day, tag, complexity, meal_title. "
+        "Use lowercase weekday names and lowercase complexity values simple/intermediate/complex."
     )
     return adapter.parse_chat_intent(system_prompt, f"Plan: {plan_summary}. Message: {message}")
+
+
+def normalize_complexity(value: str | None) -> str | None:
+    if value is None:
+        return None
+    lowered = value.lower()
+    if lowered in {"simple", "intermediate", "complex"}:
+        return lowered
+    return None
 
 
 def apply_chat_message(session: Session, user: User, plan_id: int, message: str) -> tuple[dict, str]:
     plan = load_plan_for_user(session, user.id, plan_id)
     lowered = message.lower().strip()
     days = extract_days(lowered)
+    logger.info("Processing planner chat edit for plan_id=%s message=%r", plan_id, message)
     llm_intent = parse_with_llm(plan_to_schema(plan), message)
     if llm_intent:
+        logger.info("OpenRouter returned planner chat intent for plan_id=%s: %s", plan_id, llm_intent)
         days = [llm_intent.get("source_day"), llm_intent.get("target_day")]
         days = [day for day in days if day]
         lowered = f"{llm_intent.get('action', '')} {message}".strip()
+    else:
+        logger.info("No OpenRouter planner chat intent available for plan_id=%s; using heuristic parsing.", plan_id)
+
+    requested_complexity = normalize_complexity(llm_intent.get("complexity") if llm_intent else None)
+    if requested_complexity is None:
+        for candidate in ("complex", "intermediate", "simple"):
+            if candidate in lowered:
+                requested_complexity = candidate
+                break
 
     if "swap" in lowered and len(days) >= 2:
         source = slot_for_day(plan, days[0])
@@ -133,6 +163,19 @@ def apply_chat_message(session: Session, user: User, plan_id: int, message: str)
             )
             return plan_to_schema(updated), f"Picked a simpler meal for {days[0].title()}."
 
+    if requested_complexity and days:
+        target_day = days[-1]
+        slot = slot_for_day(plan, target_day)
+        meal = choose_meal_by_tag_or_complexity(session, user.id, complexity=requested_complexity)
+        if slot and meal:
+            updated = set_slot_contents(
+                session,
+                user,
+                plan_id,
+                SetSlotRequest(slot_id=slot.id, meal_id=meal.id, slot_type="meal"),
+            )
+            return plan_to_schema(updated), f"Put a {requested_complexity} meal on {target_day.title()}: {meal.title}."
+
     tag_match = re.search(r"(?:a|an) ([a-z\-]+) on (monday|tuesday|wednesday|thursday|friday|saturday|sunday)", lowered)
     if tag_match:
         tag_name, day_name = tag_match.groups()
@@ -170,4 +213,5 @@ def apply_chat_message(session: Session, user: User, plan_id: int, message: str)
         actor_type="llm",
     )
     session.commit()
+    logger.info("Planner chat edit produced no safe action for plan_id=%s message=%r", plan_id, message)
     return plan_to_schema(plan), "I couldn't translate that request into a safe plan edit."

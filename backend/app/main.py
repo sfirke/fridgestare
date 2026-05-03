@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -8,6 +9,14 @@ from app.core.config import get_settings
 from app.services.scheduler import initialize_scheduler
 
 settings = get_settings()
+
+app_logger = logging.getLogger("app")
+if not app_logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(levelname)s [%(name)s] %(message)s"))
+    app_logger.addHandler(handler)
+app_logger.setLevel(logging.INFO)
+app_logger.propagate = False
 
 
 @asynccontextmanager

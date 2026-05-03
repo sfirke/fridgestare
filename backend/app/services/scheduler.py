@@ -6,7 +6,7 @@ from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.user import User
 from app.services.email import send_plan_email
-from app.services.planner import compute_week_start
+from app.services.planner import compute_next_week_start
 from app.services.plans import generate_week_plan
 
 
@@ -23,7 +23,7 @@ def run_scheduled_generation() -> None:
             preferences = user.preferences
             if preferences is None or not preferences.email_enabled:
                 continue
-            week_start = compute_week_start(date.today(), user.week_starts_on)
+            week_start = compute_next_week_start(date.today(), user.week_starts_on)
             plan = generate_week_plan(session, user, week_start, force_regenerate=False, generation_source="scheduled")
             send_plan_email(session, user, plan.id)
     finally:

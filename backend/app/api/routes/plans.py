@@ -15,7 +15,7 @@ from app.schemas.plan import (
     SetSlotRequest,
 )
 from app.schemas.email import EmailPreviewOut, SendEmailResponse
-from app.services.planner import compute_week_start
+from app.services.planner import compute_next_week_start
 from app.services.email import preview_plan_email, send_plan_email
 from app.services.plans import (
     current_week_plan,
@@ -40,7 +40,7 @@ def get_current_plan(
 ) -> PlanOut:
     plan = current_week_plan(session, current_user)
     if plan is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No plan for the current week")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No plan for next week")
     return PlanOut(**plan_to_schema(plan))
 
 
@@ -63,7 +63,7 @@ def post_generate_plan(
     session: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> PlanOut:
-    week_start = payload.week_start_date or compute_week_start(date.today(), current_user.week_starts_on)
+    week_start = payload.week_start_date or compute_next_week_start(date.today(), current_user.week_starts_on)
     plan = generate_week_plan(
         session,
         current_user,
