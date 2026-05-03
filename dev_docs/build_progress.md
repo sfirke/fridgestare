@@ -38,22 +38,22 @@
 - [x] Add chat intent parsing and plan mutation pipeline.
 - [x] Add Mailgun integration and scheduler flow.
 - [x] Validate integration slice.
-- [ ] Commit milestone.
+- [x] Commit milestone.
 
 ### Phase 4: Frontend SPA
 
-- [ ] Implement auth, preferences, meal library, planner board, discovery, and chat UI.
-- [ ] Add drag and drop and outcome logging UX.
-- [ ] Connect frontend to API.
-- [ ] Validate frontend slice.
-- [ ] Commit milestone.
+- [x] Implement auth, preferences, meal library, planner board, discovery, and chat UI.
+- [x] Add drag and drop and outcome logging UX.
+- [x] Connect frontend to API.
+- [x] Validate frontend slice.
+- [x] Commit milestone.
 
 ### Phase 5: Hardening and Docs
 
-- [ ] Add targeted tests and smoke coverage.
-- [ ] Update root documentation and deployment notes.
-- [ ] Run focused validation across backend and frontend.
-- [ ] Commit milestone.
+- [x] Add targeted tests and smoke coverage.
+- [x] Update root documentation and deployment notes.
+- [x] Run focused validation across backend and frontend.
+- [x] Commit milestone.
 
 ## Decisions Made During Build
 
