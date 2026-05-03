@@ -22,6 +22,7 @@ class UserPreferencesOut(BaseModel):
 
     novel_meal_ratio: float
     takeout_frequency_per_week: float
+    leftovers_per_week: int
     allow_simple: bool
     allow_intermediate: bool
     allow_complex: bool
@@ -36,6 +37,7 @@ class UserPreferencesOut(BaseModel):
 class UserPreferencesUpdate(BaseModel):
     novel_meal_ratio: float | None = Field(default=None, ge=0, le=1)
     takeout_frequency_per_week: float | None = Field(default=None, ge=0, le=7)
+    leftovers_per_week: int | None = Field(default=None, ge=0, le=7)
     allow_simple: bool | None = None
     allow_intermediate: bool | None = None
     allow_complex: bool | None = None

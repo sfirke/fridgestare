@@ -22,6 +22,11 @@ type RuleDraft = {
   active: boolean;
 };
 
+type LeftoverOption = {
+  mealId: number;
+  label: string;
+};
+
 type DashboardView = 'planner' | 'meals' | 'preferences';
 
 const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -35,6 +40,7 @@ const dashboardViews: Array<{ id: DashboardView; label: string; description: str
 const defaultPreferences: UserPreferences = {
   novel_meal_ratio: 0.15,
   takeout_frequency_per_week: 1,
+  leftovers_per_week: 0,
   allow_simple: true,
   allow_intermediate: true,
   allow_complex: true,
@@ -72,6 +78,19 @@ function parseCalendarDate(dateString: string): Date {
   return new Date(dateString);
 }
 
+function formatCalendarDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function shiftCalendarDate(dateString: string, dayOffset: number): string {
+  const shifted = parseCalendarDate(dateString);
+  shifted.setDate(shifted.getDate() + dayOffset);
+  return formatCalendarDateKey(shifted);
+}
+
 function formatDate(dateString: string): string {
   return parseCalendarDate(dateString).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
@@ -88,6 +107,9 @@ function slotCardTitle(slot: PlanSlot): string {
   if (slot.slot_type === 'takeout') {
     return 'Takeout';
   }
+  if (slot.slot_type === 'leftover') {
+    return `Leftovers: ${slot.title_snapshot}`;
+  }
   return slot.title_snapshot;
 }
 
@@ -98,6 +120,9 @@ function slotCardSummary(slot: PlanSlot): string {
   if (slot.slot_type === 'takeout') {
     return 'Reserved for takeout.';
   }
+  if (slot.slot_type === 'leftover') {
+    return slot.selection_reason || 'Reusing an earlier meal as leftovers.';
+  }
   return slot.selection_reason || 'Planned for the week.';
 }
 
@@ -107,6 +132,9 @@ function slotInspectorSummary(slot: PlanSlot): string {
   }
   if (slot.slot_type === 'takeout') {
     return 'This day is currently marked for takeout. You can keep it, replace it with a meal, or clear the slot.';
+  }
+  if (slot.slot_type === 'leftover') {
+    return slot.selection_reason || 'This slot is currently marked as leftovers. You can swap in a different leftover source, replace it with a meal, or clear it.';
   }
   return slot.selection_reason || 'Planner-selected meal for the week.';
 }
@@ -139,6 +167,7 @@ export function App() {
   const [rulesDraft, setRulesDraft] = useState<RuleDraft[]>([]);
   const [meals, setMeals] = useState<Meal[]>([]);
   const [plan, setPlan] = useState<Plan | null>(null);
+  const [previousPlan, setPreviousPlan] = useState<Plan | null>(null);
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [mealForm, setMealForm] = useState(defaultMealForm);
@@ -148,6 +177,7 @@ export function App() {
   const [draggedSlotId, setDraggedSlotId] = useState<number | null>(null);
   const [selectedSlotId, setSelectedSlotId] = useState<number | null>(null);
   const [selectedMealForSlot, setSelectedMealForSlot] = useState<Record<number, number | ''>>({});
+  const [selectedLeftoverMealForSlot, setSelectedLeftoverMealForSlot] = useState<Record<number, number | ''>>({});
   const [chatMessage, setChatMessage] = useState('');
   const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'system'; message: string }>>([]);
   const [discoveryQuery, setDiscoveryQuery] = useState('');
@@ -157,14 +187,31 @@ export function App() {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const requestedWeek = useMemo(() => parseWeekFromPath(), []);
 
+  async function syncPlanContext(nextPlan: Plan | null) {
+    setPlan(nextPlan);
+    if (!nextPlan) {
+      setPreviousPlan(null);
+      return;
+    }
+    try {
+      const priorPlan = await api.getWeekPlan(shiftCalendarDate(nextPlan.week_start_date, -7));
+      setPreviousPlan(priorPlan);
+    } catch {
+      setPreviousPlan(null);
+    }
+  }
+
   async function loadDashboard(targetWeek?: string | null) {
     const me = await api.getMe();
     const [mealsResponse, tags] = await Promise.all([api.listMeals(), api.getTagSuggestions()]);
     let planResponse: Plan | null = null;
+    let previousPlanResponse: Plan | null = null;
     try {
       planResponse = targetWeek ? await api.getWeekPlan(targetWeek) : await api.getCurrentPlan();
+      previousPlanResponse = await api.getWeekPlan(shiftCalendarDate(planResponse.week_start_date, -7));
     } catch {
       planResponse = null;
+      previousPlanResponse = null;
     }
     setSession(me);
     setPreferencesDraft(me.preferences);
@@ -180,6 +227,7 @@ export function App() {
     setMeals(mealsResponse);
     setTagSuggestions(tags.map((tag) => tag.name));
     setPlan(planResponse);
+    setPreviousPlan(previousPlanResponse);
     setAuthState('authenticated');
   }
 
@@ -233,7 +281,7 @@ export function App() {
       return;
     }
     const nextPlan = await api.getWeekPlan(plan.week_start_date);
-    setPlan(nextPlan);
+    await syncPlanContext(nextPlan);
   }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
@@ -255,6 +303,7 @@ export function App() {
       setAuthState('anonymous');
       setSession(null);
       setPlan(null);
+      setPreviousPlan(null);
       setMeals([]);
       setStatusMessage('Logged out.');
     } catch (error) {
@@ -269,6 +318,7 @@ export function App() {
       const updatedPreferences = await api.updatePreferences({
         novel_meal_ratio: preferencesDraft.novel_meal_ratio,
         takeout_frequency_per_week: preferencesDraft.takeout_frequency_per_week,
+        leftovers_per_week: preferencesDraft.leftovers_per_week,
         allow_simple: preferencesDraft.allow_simple,
         allow_intermediate: preferencesDraft.allow_intermediate,
         allow_complex: preferencesDraft.allow_complex,
@@ -353,7 +403,7 @@ export function App() {
     resetMessages();
     try {
       const nextPlan = await api.generatePlan(requestedWeek ?? undefined, forceRegenerate);
-      setPlan(nextPlan);
+      await syncPlanContext(nextPlan);
       setStatusMessage('Weekly plan generated.');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to generate plan.');
@@ -364,7 +414,7 @@ export function App() {
     resetMessages();
     try {
       const updatedPlan = await updater();
-      setPlan(updatedPlan);
+      await syncPlanContext(updatedPlan);
       setStatusMessage(successMessage);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to update the plan.');
@@ -387,6 +437,16 @@ export function App() {
     await applyPlanUpdate(
       () => api.setSlot(plan.id, { slot_id: slotId, meal_id: Number(mealId), slot_type: 'meal' }),
       'Slot updated.',
+    );
+  }
+
+  async function handleMarkLeftover(slotId: number) {
+    if (!plan) return;
+    const mealId = selectedLeftoverMealForSlot[slotId];
+    if (!mealId) return;
+    await applyPlanUpdate(
+      () => api.setSlot(plan.id, { slot_id: slotId, meal_id: Number(mealId), slot_type: 'leftover' }),
+      'Slot marked as leftovers.',
     );
   }
 
@@ -461,6 +521,37 @@ export function App() {
     return complexityMatches && tagMatches;
   });
   const selectedSlot = plan?.slots.find((slot) => slot.id === selectedSlotId) ?? null;
+  const leftoverOptions = useMemo(() => {
+    if (!selectedSlot || !plan) {
+      return [] as LeftoverOption[];
+    }
+
+    const optionsByMealId = new Map<number, LeftoverOption>();
+    const earlierSlots = plan.slots.filter(
+      (slot) => slot.slot_order < selectedSlot.slot_order && slot.meal_id !== null && slot.slot_type !== 'takeout' && slot.slot_type !== 'empty',
+    );
+    for (const slot of earlierSlots) {
+      if (!slot.meal_id || optionsByMealId.has(slot.meal_id)) {
+        continue;
+      }
+      optionsByMealId.set(slot.meal_id, {
+        mealId: slot.meal_id,
+        label: `Earlier this week · ${slotLabel(slot)} · ${slot.title_snapshot}`,
+      });
+    }
+
+    for (const slot of previousPlan?.slots ?? []) {
+      if (!slot.meal_id || slot.slot_type === 'takeout' || slot.slot_type === 'empty' || optionsByMealId.has(slot.meal_id)) {
+        continue;
+      }
+      optionsByMealId.set(slot.meal_id, {
+        mealId: slot.meal_id,
+        label: `Last week · ${slotLabel(slot)} · ${slot.title_snapshot}`,
+      });
+    }
+
+    return Array.from(optionsByMealId.values());
+  }, [plan, previousPlan, selectedSlot]);
 
   if (authState === 'loading') {
     return (
@@ -605,6 +696,19 @@ export function App() {
                   value={preferencesDraft.takeout_frequency_per_week}
                   onChange={(event) =>
                     setPreferencesDraft((current) => ({ ...current, takeout_frequency_per_week: Number(event.target.value) }))
+                  }
+                />
+              </label>
+              <label>
+                <span>Leftovers per week</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="7"
+                  step="1"
+                  value={preferencesDraft.leftovers_per_week}
+                  onChange={(event) =>
+                    setPreferencesDraft((current) => ({ ...current, leftovers_per_week: Number(event.target.value) }))
                   }
                 />
               </label>
@@ -867,7 +971,7 @@ export function App() {
                     {plan.slots.map((slot) => (
                       <article
                         key={slot.id}
-                        className={`slot-card ${selectedSlotId === slot.id ? 'slot-selected' : ''}`}
+                        className={`slot-card slot-type-${slot.slot_type} ${selectedSlotId === slot.id ? 'slot-selected' : ''}`}
                         draggable
                         onClick={() => setSelectedSlotId(slot.id)}
                         onDragStart={() => setDraggedSlotId(slot.id)}
@@ -930,6 +1034,34 @@ export function App() {
                           ))}
                         </select>
                         <button className="secondary-button" type="button" onClick={() => void handleSelectMealForSlot(selectedSlot.id)}>Set meal</button>
+                      </div>
+                    </label>
+                    <label>
+                      <span>Mark as leftovers from earlier this week or last week</span>
+                      <div className="inline-select-row">
+                        <select
+                          value={selectedLeftoverMealForSlot[selectedSlot.id] ?? ''}
+                          onChange={(event) =>
+                            setSelectedLeftoverMealForSlot((current) => ({
+                              ...current,
+                              [selectedSlot.id]: event.target.value ? Number(event.target.value) : '',
+                            }))
+                          }
+                          disabled={leftoverOptions.length === 0}
+                        >
+                          <option value="">{leftoverOptions.length ? 'Choose a leftover source...' : 'No earlier meals available yet'}</option>
+                          {leftoverOptions.map((option) => (
+                            <option key={option.mealId} value={option.mealId}>{option.label}</option>
+                          ))}
+                        </select>
+                        <button
+                          className="secondary-button"
+                          type="button"
+                          onClick={() => void handleMarkLeftover(selectedSlot.id)}
+                          disabled={leftoverOptions.length === 0}
+                        >
+                          Mark leftover
+                        </button>
                       </div>
                     </label>
                     <div className="slot-actions inspector-actions">

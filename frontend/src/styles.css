@@ -359,6 +359,15 @@ li {
   transform: translateY(-2px);
 }
 
+.slot-type-leftover {
+  border-color: rgba(127, 209, 185, 0.35);
+  background: linear-gradient(180deg, rgba(14, 28, 27, 0.74), rgba(5, 7, 10, 0.42));
+}
+
+.slot-type-leftover .slot-day {
+  color: var(--accent-2);
+}
+
 .slot-selected {
   border-color: rgba(255, 184, 108, 0.65);
   box-shadow: 0 0 0 1px rgba(255, 184, 108, 0.35);

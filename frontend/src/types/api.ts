@@ -12,6 +12,7 @@ export type User = {
 export type UserPreferences = {
   novel_meal_ratio: number;
   takeout_frequency_per_week: number;
+  leftovers_per_week: number;
   allow_simple: boolean;
   allow_intermediate: boolean;
   allow_complex: boolean;

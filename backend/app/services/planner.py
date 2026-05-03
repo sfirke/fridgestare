@@ -134,6 +134,105 @@ def build_plan_explanation(slot_explanations: list[str], constraint_notes: list[
     return "\n".join(lines)
 
 
+def slot_can_be_reused(slot_payload: dict) -> bool:
+    return slot_payload["slot_type"] == "meal" and slot_payload["meal_id"] is not None
+
+
+def slot_explanation(slot_payload: dict) -> str:
+    slot_date = slot_payload["slot_date"]
+    if slot_payload["slot_type"] == "takeout":
+        return f"{slot_date:%A}: Takeout Night because {slot_payload['selection_reason']}"
+    if slot_payload["slot_type"] == "leftover":
+        return f"{slot_date:%A}: Leftovers ({slot_payload['title_snapshot']}) because {slot_payload['selection_reason']}"
+    if slot_payload["slot_type"] == "empty":
+        return f"{slot_date:%A}: Unplanned because {slot_payload['selection_reason']}"
+    return f"{slot_date:%A}: {slot_payload['title_snapshot']} because {slot_payload['selection_reason']}"
+
+
+def previous_week_leftover_sources(history: list[PlanSlot], week_start_date: date) -> list[dict]:
+    previous_week_start = week_start_date - timedelta(days=7)
+    return [
+        {
+            "meal_id": slot.meal_id,
+            "title_snapshot": slot.title_snapshot,
+            "notes_snapshot": slot.notes_snapshot,
+            "slot_date": slot.slot_date,
+        }
+        for slot in sorted(history, key=lambda item: item.slot_date)
+        if previous_week_start <= slot.slot_date < week_start_date
+        and slot.meal_id is not None
+        and slot.slot_type in {"meal", "leftover"}
+    ]
+
+
+def apply_leftover_preferences(
+    slot_payloads: list[dict],
+    history: list[PlanSlot],
+    week_start_date: date,
+    leftovers_target: int,
+) -> list[str]:
+    if leftovers_target <= 0:
+        return []
+
+    notes: list[str] = []
+    previous_week_sources = previous_week_leftover_sources(history, week_start_date)
+    previous_week_index = 0
+    leftovers_selected = 0
+    reserved_source_indices: set[int] = set()
+
+    for target_index in range(len(slot_payloads) - 1, -1, -1):
+        if leftovers_selected >= leftovers_target:
+            break
+        target_slot = slot_payloads[target_index]
+        if not slot_can_be_reused(target_slot) or target_index in reserved_source_indices:
+            continue
+
+        source_index = next(
+            (
+                candidate_index
+                for candidate_index in range(target_index - 1, -1, -1)
+                if slot_can_be_reused(slot_payloads[candidate_index]) and candidate_index not in reserved_source_indices
+            ),
+            None,
+        )
+        if source_index is not None:
+            source_slot = slot_payloads[source_index]
+            reserved_source_indices.add(source_index)
+            target_slot.update(
+                {
+                    "slot_type": "leftover",
+                    "meal_id": source_slot["meal_id"],
+                    "discovered_candidate_id": None,
+                    "title_snapshot": source_slot["title_snapshot"],
+                    "notes_snapshot": source_slot["notes_snapshot"],
+                    "selection_reason": f"Saved for leftovers from {source_slot['slot_date']:%A}'s {source_slot['title_snapshot']}.",
+                }
+            )
+            leftovers_selected += 1
+            continue
+
+        if previous_week_index < len(previous_week_sources):
+            source_slot = previous_week_sources[previous_week_index]
+            previous_week_index += 1
+            target_slot.update(
+                {
+                    "slot_type": "leftover",
+                    "meal_id": source_slot["meal_id"],
+                    "discovered_candidate_id": None,
+                    "title_snapshot": source_slot["title_snapshot"],
+                    "notes_snapshot": source_slot["notes_snapshot"],
+                    "selection_reason": f"Saved for leftovers from last week's {source_slot['title_snapshot']}.",
+                }
+            )
+            leftovers_selected += 1
+
+    if leftovers_selected < leftovers_target:
+        notes.append(
+            "Leftover preference could not be fully satisfied because there were not enough earlier meals to reuse."
+        )
+    return notes
+
+
 def generate_slot_selection(
     meals: list[Meal],
     preferences: UserPreferences,
@@ -199,7 +298,6 @@ def generate_plan_payload(session: Session, user: User, week_start_date: date) -
     history = load_history(session, user.id, week_start_date)
     selected_meal_ids: set[int] = set()
     slot_payloads: list[dict] = []
-    slot_explanations: list[str] = []
     constraint_notes: list[str] = []
 
     takeout_target = round(preferences.takeout_frequency_per_week)
@@ -219,8 +317,6 @@ def generate_plan_payload(session: Session, user: User, week_start_date: date) -
         slot_payloads.append({**slot_payload, "slot_date": slot_date, "slot_order": offset})
         if note:
             constraint_notes.append(note)
-        else:
-            slot_explanations.append(f"{slot_date:%A}: {slot_payload['title_snapshot']} because {slot_payload['selection_reason']}.")
 
     if takeout_target > takeout_days_selected:
         remaining = takeout_target - takeout_days_selected
@@ -240,5 +336,11 @@ def generate_plan_payload(session: Session, user: User, week_start_date: date) -
                 remaining -= 1
         if remaining:
             constraint_notes.append("Takeout preference could not be fully satisfied because several slots were already constrained.")
+
+    constraint_notes.extend(
+        apply_leftover_preferences(slot_payloads, history, week_start_date, preferences.leftovers_per_week)
+    )
+
+    slot_explanations = [slot_explanation(slot_payload) for slot_payload in slot_payloads]
 
     return slot_payloads, build_plan_explanation(slot_explanations, constraint_notes)

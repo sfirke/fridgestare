@@ -194,16 +194,27 @@ def set_slot_contents(session: Session, user: User, plan_id: int, payload: SetSl
     slot.meal_id = payload.meal_id
     if payload.slot_type == "meal" and payload.meal_id is not None:
         meal = load_meal_for_user(session, user.id, payload.meal_id)
+        slot.discovered_candidate_id = None
         slot.title_snapshot = meal.title
         slot.notes_snapshot = meal.notes
         slot.selection_reason = "Manually selected by the user."
+    elif payload.slot_type == "leftover":
+        if payload.meal_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Leftovers require a meal")
+        meal = load_meal_for_user(session, user.id, payload.meal_id)
+        slot.discovered_candidate_id = None
+        slot.title_snapshot = meal.title
+        slot.notes_snapshot = meal.notes
+        slot.selection_reason = "Marked as leftovers by the user."
     elif payload.slot_type == "takeout":
         slot.meal_id = None
+        slot.discovered_candidate_id = None
         slot.title_snapshot = payload.title_snapshot or "Takeout Night"
         slot.notes_snapshot = payload.notes_snapshot or ""
         slot.selection_reason = "Marked as takeout by the user."
     else:
         slot.meal_id = None
+        slot.discovered_candidate_id = None
         slot.title_snapshot = payload.title_snapshot or "Unplanned"
         slot.notes_snapshot = payload.notes_snapshot or ""
         slot.selection_reason = "Cleared by the user."

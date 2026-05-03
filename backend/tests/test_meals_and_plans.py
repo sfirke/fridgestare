@@ -81,6 +81,14 @@ def test_plan_generation_and_mutations(authenticated_client: tuple) -> None:
     taco = create_meal(client, csrf_token, "Taco Soup", ["soup", "tacos"], "simple")
     roast = create_meal(client, csrf_token, "Roast Chicken", ["cozy"], "intermediate")
     pasta = create_meal(client, csrf_token, "Pasta Primavera", ["quick"], "simple")
+    create_meal(client, csrf_token, "Bean Chili", ["cozy", "beans"], "simple")
+
+    preferences = client.patch(
+        "/api/me/preferences",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"leftovers_per_week": 2},
+    )
+    assert preferences.status_code == 200
 
     rules = client.patch(
         "/api/me/schedule-rules",
@@ -103,6 +111,14 @@ def test_plan_generation_and_mutations(authenticated_client: tuple) -> None:
     plan = generated.json()
     assert len(plan["slots"]) == 7
     assert any(slot["slot_type"] == "takeout" for slot in plan["slots"])
+    leftovers = [slot for slot in plan["slots"] if slot["slot_type"] == "leftover"]
+    assert len(leftovers) == 2
+    for leftover in leftovers:
+        assert leftover["meal_id"] is not None
+        assert any(
+            candidate["slot_order"] < leftover["slot_order"] and candidate["meal_id"] == leftover["meal_id"]
+            for candidate in plan["slots"]
+        )
 
     slot_ids = [slot["id"] for slot in plan["slots"]]
     set_slot = client.post(
@@ -112,6 +128,16 @@ def test_plan_generation_and_mutations(authenticated_client: tuple) -> None:
     )
     assert set_slot.status_code == 200
     assert set_slot.json()["slots"][0]["title_snapshot"] == "Taco Soup"
+
+    set_leftover = client.post(
+        f"/api/plans/{plan['id']}/set-slot",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"slot_id": slot_ids[-1], "meal_id": roast["id"], "slot_type": "leftover"},
+    )
+    assert set_leftover.status_code == 200
+    latest_slot = next(slot for slot in set_leftover.json()["slots"] if slot["id"] == slot_ids[-1])
+    assert latest_slot["slot_type"] == "leftover"
+    assert latest_slot["title_snapshot"] == "Roast Chicken"
 
     moved = client.post(
         f"/api/plans/{plan['id']}/move-slot",

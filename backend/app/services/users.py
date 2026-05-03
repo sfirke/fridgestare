@@ -47,6 +47,7 @@ def create_user(
             user_id=user.id,
             novel_meal_ratio=0.15,
             takeout_frequency_per_week=1.0,
+            leftovers_per_week=0,
             allow_simple=True,
             allow_intermediate=True,
             allow_complex=True,

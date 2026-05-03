@@ -40,6 +40,7 @@ describe('App', () => {
               preferences: {
                 novel_meal_ratio: 0.15,
                 takeout_frequency_per_week: 1,
+                leftovers_per_week: 0,
                 allow_simple: true,
                 allow_intermediate: true,
                 allow_complex: true,
@@ -60,6 +61,7 @@ describe('App', () => {
             preferences: {
               novel_meal_ratio: 0.15,
               takeout_frequency_per_week: 1,
+              leftovers_per_week: 0,
               allow_simple: true,
               allow_intermediate: true,
               allow_complex: true,
