@@ -1,0 +1,25 @@
+Metadata-Version: 2.4
+Name: fridgestare-backend
+Version: 0.1.0
+Summary: Backend API for Fridgestare
+Requires-Python: >=3.12
+Requires-Dist: alembic>=1.15.2
+Requires-Dist: apscheduler>=3.11.0
+Requires-Dist: argon2-cffi>=23.1.0
+Requires-Dist: email-validator>=2.2.0
+Requires-Dist: fastapi>=0.115.12
+Requires-Dist: httpx>=0.28.1
+Requires-Dist: jinja2>=3.1.6
+Requires-Dist: passlib>=1.7.4
+Requires-Dist: psycopg[binary]>=3.2.7
+Requires-Dist: pydantic-settings>=2.9.1
+Requires-Dist: pyjwt>=2.10.1
+Requires-Dist: python-multipart>=0.0.20
+Requires-Dist: sqlalchemy>=2.0.40
+Requires-Dist: typer>=0.15.3
+Requires-Dist: uvicorn[standard]>=0.34.2
+Provides-Extra: dev
+Requires-Dist: pylint>=3.3.7; extra == "dev"
+Requires-Dist: pytest>=8.3.5; extra == "dev"
+Requires-Dist: pytest-cov>=6.1.1; extra == "dev"
+Requires-Dist: ruff>=0.11.8; extra == "dev"

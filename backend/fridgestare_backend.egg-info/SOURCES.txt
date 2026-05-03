@@ -1,0 +1,8 @@
+pyproject.toml
+app/main.py
+fridgestare_backend.egg-info/PKG-INFO
+fridgestare_backend.egg-info/SOURCES.txt
+fridgestare_backend.egg-info/dependency_links.txt
+fridgestare_backend.egg-info/entry_points.txt
+fridgestare_backend.egg-info/requires.txt
+fridgestare_backend.egg-info/top_level.txt

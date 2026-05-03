@@ -1,0 +1,2 @@
+[console_scripts]
+fridgestare = app.cli.main:app
