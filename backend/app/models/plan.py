@@ -41,6 +41,8 @@ class DiscoveredRecipeCandidate(Base):
         nullable=False,
     )
 
+    accepted_meal: Mapped["Meal | None"] = relationship("Meal")
+
 
 class PlanSlot(Base):
     __tablename__ = "plan_slots"

@@ -10,11 +10,13 @@ os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH}"
 from app.db.base import Base  # noqa: E402
 from app.db.session import SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
+from app.core.rate_limit import REQUEST_LOG  # noqa: E402
 from app.services.users import create_user  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
 def reset_database() -> None:
+    REQUEST_LOG.clear()
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
 

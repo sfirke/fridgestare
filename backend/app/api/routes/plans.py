@@ -14,7 +14,9 @@ from app.schemas.plan import (
     RerollSlotRequest,
     SetSlotRequest,
 )
+from app.schemas.email import EmailPreviewOut, SendEmailResponse
 from app.services.planner import compute_week_start
+from app.services.email import preview_plan_email, send_plan_email
 from app.services.plans import (
     current_week_plan,
     generate_week_plan,
@@ -126,3 +128,24 @@ def post_outcome_status(
     return PlanOut(
         **plan_to_schema(update_outcome_status(session, current_user, plan_id, slot_id, payload.outcome_status))
     )
+
+
+@router.post("/{plan_id}/send-email", response_model=SendEmailResponse)
+def post_send_email(
+    plan_id: int,
+    _: None = Depends(require_csrf),
+    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SendEmailResponse:
+    delivery_mode, _ = send_plan_email(session, current_user, plan_id)
+    return SendEmailResponse(status="queued", delivery_mode=delivery_mode)
+
+
+@router.get("/{plan_id}/email-preview", response_model=EmailPreviewOut)
+def get_email_preview(
+    plan_id: int,
+    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> EmailPreviewOut:
+    subject, html, delivery_mode = preview_plan_email(session, current_user, plan_id)
+    return EmailPreviewOut(subject=subject, html=html, delivery_mode=delivery_mode)

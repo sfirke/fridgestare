@@ -30,14 +30,14 @@
 - [x] Implement deterministic planner, weekly plans, reroll, move, set, undo, and outcomes.
 - [ ] Add discovery acceptance persistence.
 - [x] Validate backend feature slice.
-- [ ] Commit milestone.
+- [x] Commit milestone.
 
 ### Phase 3: LLM, Discovery, Email, Scheduler
 
-- [ ] Add OpenRouter and Tavily adapters with safe fallbacks.
-- [ ] Add chat intent parsing and plan mutation pipeline.
-- [ ] Add Mailgun integration and scheduler flow.
-- [ ] Validate integration slice.
+- [x] Add OpenRouter and Tavily adapters with safe fallbacks.
+- [x] Add chat intent parsing and plan mutation pipeline.
+- [x] Add Mailgun integration and scheduler flow.
+- [x] Validate integration slice.
 - [ ] Commit milestone.
 
 ### Phase 4: Frontend SPA

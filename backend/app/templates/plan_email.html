@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <body style="font-family: Trebuchet MS, sans-serif; background: #12151b; color: #f5f1e8; padding: 24px;">
+    <h1 style="margin-bottom: 8px;">Fridgestare weekly plan</h1>
+    <p style="margin-top: 0; color: #d6cbb7;">Week of {{ plan.week_start_date }}</p>
+    <ul>
+      {% for slot in plan.slots %}
+      <li style="margin-bottom: 8px;">
+        <strong>{{ slot.slot_date.strftime('%A') }}</strong>: {{ slot.title_snapshot }}
+      </li>
+      {% endfor %}
+    </ul>
+    <p><a href="{{ link }}" style="color: #ffb86c;">Open this plan in Fridgestare</a></p>
+  </body>
+</html>
