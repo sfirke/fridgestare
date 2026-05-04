@@ -91,6 +91,13 @@ export type Plan = {
   slots: PlanSlot[];
 };
 
+export type PlanSummary = {
+  id: number;
+  week_start_date: string;
+  status: string;
+  generation_source: string;
+};
+
 export type DiscoveryCandidate = {
   id: number;
   title: string;

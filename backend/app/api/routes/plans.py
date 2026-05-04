@@ -11,6 +11,7 @@ from app.schemas.plan import (
     MoveSlotRequest,
     OutcomeStatusUpdate,
     PlanOut,
+    PlanSummaryOut,
     RerollSlotRequest,
     SetSlotRequest,
 )
@@ -20,6 +21,7 @@ from app.services.email import preview_plan_email, send_plan_email
 from app.services.plans import (
     current_week_plan,
     generate_week_plan,
+    list_plan_summaries,
     load_plan_by_week,
     load_plan_for_user,
     move_slot_contents,
@@ -31,6 +33,14 @@ from app.services.plans import (
 )
 
 router = APIRouter()
+
+
+@router.get("", response_model=list[PlanSummaryOut])
+def get_plan_history(
+    session: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[PlanSummaryOut]:
+    return [PlanSummaryOut(**plan) for plan in list_plan_summaries(session, current_user.id)]
 
 
 @router.get("/current", response_model=PlanOut)

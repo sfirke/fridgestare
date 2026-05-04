@@ -7,6 +7,7 @@ import type {
   Meal,
   MeResponse,
   Plan,
+  PlanSummary,
   RecurringRule,
   UserPreferences,
 } from '../types/api';
@@ -132,6 +133,9 @@ export const api = {
   },
   getCurrentPlan() {
     return request<Plan>('/plans/current');
+  },
+  listPlans() {
+    return request<PlanSummary[]>('/plans');
   },
   getWeekPlan(weekStart: string) {
     return request<Plan>(`/plans/week/${weekStart}`);

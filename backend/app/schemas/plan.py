@@ -31,6 +31,13 @@ class PlanOut(BaseModel):
     slots: list[PlanSlotOut]
 
 
+class PlanSummaryOut(BaseModel):
+    id: int
+    week_start_date: date
+    status: str
+    generation_source: str
+
+
 class RerollSlotRequest(BaseModel):
     slot_id: int
 

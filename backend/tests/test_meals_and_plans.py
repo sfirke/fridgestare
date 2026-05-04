@@ -187,6 +187,13 @@ def test_plan_generation_and_mutations(authenticated_client: tuple) -> None:
     assert generated_next.status_code == 200
     assert generated_next.json()["week_start_date"] == str(next_week_start)
 
+    history = client.get("/api/plans")
+    assert history.status_code == 200
+    assert [item["week_start_date"] for item in history.json()] == [
+        str(next_week_start),
+        str(date.today() - timedelta(days=date.today().weekday())),
+    ]
+
     current = client.get("/api/plans/current")
     assert current.status_code == 200
     assert current.json()["week_start_date"] == str(next_week_start)

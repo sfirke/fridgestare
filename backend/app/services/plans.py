@@ -11,6 +11,15 @@ from app.services.meals import load_meal_for_user
 from app.services.planner import compute_next_week_start, generate_plan_payload, generate_slot_selection
 
 
+def plan_summary_to_schema(plan: WeeklyPlan) -> dict:
+    return {
+        "id": plan.id,
+        "week_start_date": plan.week_start_date,
+        "status": plan.status,
+        "generation_source": plan.generation_source,
+    }
+
+
 def plan_to_schema(plan: WeeklyPlan) -> dict:
     return {
         "id": plan.id,
@@ -56,6 +65,16 @@ def load_plan_by_week(session: Session, user_id: int, week_start_date: date) -> 
         .filter(WeeklyPlan.user_id == user_id, WeeklyPlan.week_start_date == week_start_date)
         .one_or_none()
     )
+
+
+def list_plan_summaries(session: Session, user_id: int) -> list[dict]:
+    plans = (
+        session.query(WeeklyPlan)
+        .filter(WeeklyPlan.user_id == user_id)
+        .order_by(WeeklyPlan.week_start_date.desc())
+        .all()
+    )
+    return [plan_summary_to_schema(plan) for plan in plans]
 
 
 def current_week_plan(session: Session, user: User) -> WeeklyPlan | None:

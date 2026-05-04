@@ -9,6 +9,7 @@ import type {
   MeResponse,
   Plan,
   PlanSlot,
+  PlanSummary,
   RecurringRule,
   UserPreferences,
 } from './types/api';
@@ -91,6 +92,14 @@ function shiftCalendarDate(dateString: string, dayOffset: number): string {
   return formatCalendarDateKey(shifted);
 }
 
+function syncBrowserWeekPath(weekStart: string | null, mode: 'push' | 'replace' = 'push') {
+  const nextPath = weekStart ? `/plans/${weekStart}` : '/';
+  if (window.location.pathname === nextPath && !window.location.search) {
+    return;
+  }
+  window.history[mode === 'replace' ? 'replaceState' : 'pushState']({}, '', nextPath);
+}
+
 function formatDate(dateString: string): string {
   return parseCalendarDate(dateString).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
@@ -167,6 +176,7 @@ export function App() {
   const [rulesDraft, setRulesDraft] = useState<RuleDraft[]>([]);
   const [meals, setMeals] = useState<Meal[]>([]);
   const [plan, setPlan] = useState<Plan | null>(null);
+  const [planHistory, setPlanHistory] = useState<PlanSummary[]>([]);
   const [previousPlan, setPreviousPlan] = useState<Plan | null>(null);
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
@@ -185,7 +195,7 @@ export function App() {
   const [emailPreview, setEmailPreview] = useState<EmailPreview | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
-  const requestedWeek = useMemo(() => parseWeekFromPath(), []);
+  const [viewedWeek, setViewedWeek] = useState<string | null>(() => parseWeekFromPath());
 
   async function syncPlanContext(nextPlan: Plan | null) {
     setPlan(nextPlan);
@@ -201,18 +211,20 @@ export function App() {
     }
   }
 
-  async function loadDashboard(targetWeek?: string | null) {
-    const me = await api.getMe();
-    const [mealsResponse, tags] = await Promise.all([api.listMeals(), api.getTagSuggestions()]);
-    let planResponse: Plan | null = null;
-    let previousPlanResponse: Plan | null = null;
+  async function loadPlanView(targetWeek: string | null) {
     try {
-      planResponse = targetWeek ? await api.getWeekPlan(targetWeek) : await api.getCurrentPlan();
-      previousPlanResponse = await api.getWeekPlan(shiftCalendarDate(planResponse.week_start_date, -7));
+      const planResponse = targetWeek ? await api.getWeekPlan(targetWeek) : await api.getCurrentPlan();
+      await syncPlanContext(planResponse);
     } catch {
-      planResponse = null;
-      previousPlanResponse = null;
+      setPlan(null);
+      setPreviousPlan(null);
     }
+  }
+
+  async function loadDashboard(targetWeek: string | null) {
+    const me = await api.getMe();
+    const [mealsResponse, tags, history] = await Promise.all([api.listMeals(), api.getTagSuggestions(), api.listPlans()]);
+    await loadPlanView(targetWeek);
     setSession(me);
     setPreferencesDraft(me.preferences);
     setRulesDraft(
@@ -225,9 +237,8 @@ export function App() {
       })),
     );
     setMeals(mealsResponse);
+    setPlanHistory(history);
     setTagSuggestions(tags.map((tag) => tag.name));
-    setPlan(planResponse);
-    setPreviousPlan(previousPlanResponse);
     setAuthState('authenticated');
   }
 
@@ -235,10 +246,9 @@ export function App() {
     let active = true;
     api
       .authMe()
-      .then((response) => {
+      .then(() => {
         if (!active) return;
-        setSession(response.me);
-        return loadDashboard(requestedWeek);
+        return loadDashboard(viewedWeek);
       })
       .catch(() => {
         if (!active) return;
@@ -247,7 +257,20 @@ export function App() {
     return () => {
       active = false;
     };
-  }, [requestedWeek]);
+  }, []);
+
+  useEffect(() => {
+    function handlePopState() {
+      const nextWeek = parseWeekFromPath();
+      setViewedWeek(nextWeek);
+      if (authState === 'authenticated') {
+        void loadPlanView(nextWeek);
+      }
+    }
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [authState]);
 
   useEffect(() => {
     if (!plan) {
@@ -289,7 +312,7 @@ export function App() {
     resetMessages();
     try {
       await api.login(loginForm.email, loginForm.password);
-      await loadDashboard(requestedWeek);
+      await loadDashboard(viewedWeek);
       setStatusMessage('Logged in.');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to log in.');
@@ -303,8 +326,11 @@ export function App() {
       setAuthState('anonymous');
       setSession(null);
       setPlan(null);
+      setPlanHistory([]);
       setPreviousPlan(null);
       setMeals([]);
+      setViewedWeek(null);
+      syncBrowserWeekPath(null, 'replace');
       setStatusMessage('Logged out.');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to log out.');
@@ -402,8 +428,12 @@ export function App() {
   async function handleGeneratePlan(forceRegenerate = false) {
     resetMessages();
     try {
-      const nextPlan = await api.generatePlan(requestedWeek ?? undefined, forceRegenerate);
+      const nextPlan = await api.generatePlan(viewedWeek ?? undefined, forceRegenerate);
+      const history = await api.listPlans();
       await syncPlanContext(nextPlan);
+      setPlanHistory(history);
+      setViewedWeek(nextPlan.week_start_date);
+      syncBrowserWeekPath(nextPlan.week_start_date, 'replace');
       setStatusMessage('Weekly plan generated.');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to generate plan.');
@@ -479,7 +509,7 @@ export function App() {
     resetMessages();
     try {
       const response: ChatResponse = await api.chatPlan(plan.id, chatMessage.trim());
-      setPlan(response.plan);
+      await syncPlanContext(response.plan);
       setChatHistory((current) => [
         ...current,
         { role: 'user', message: chatMessage.trim() },
@@ -515,12 +545,35 @@ export function App() {
     }
   }
 
+  async function handleOpenWeek(weekStart: string) {
+    resetMessages();
+    setViewedWeek(weekStart);
+    syncBrowserWeekPath(weekStart);
+    await loadPlanView(weekStart);
+  }
+
+  async function handleOpenCurrentWeek() {
+    resetMessages();
+    setViewedWeek(null);
+    syncBrowserWeekPath(null);
+    await loadPlanView(null);
+  }
+
   const filteredMeals = meals.filter((meal) => {
     const complexityMatches = !mealFilter.complexity || meal.complexity === mealFilter.complexity;
     const tagMatches = !mealFilter.tag || meal.tags.some((tag) => tag.name.includes(mealFilter.tag.toLowerCase()));
     return complexityMatches && tagMatches;
   });
   const selectedSlot = plan?.slots.find((slot) => slot.id === selectedSlotId) ?? null;
+  const activeHistoryWeek = plan?.week_start_date ?? viewedWeek;
+  const activeHistoryIndex = activeHistoryWeek
+    ? planHistory.findIndex((summary) => summary.week_start_date === activeHistoryWeek)
+    : -1;
+  const latestSavedPlan = planHistory[0] ?? null;
+  const newerSavedPlan = activeHistoryIndex > 0 ? planHistory[activeHistoryIndex - 1] : null;
+  const olderSavedPlan = activeHistoryIndex >= 0 && activeHistoryIndex < planHistory.length - 1
+    ? planHistory[activeHistoryIndex + 1]
+    : null;
   const leftoverOptions = useMemo(() => {
     if (!selectedSlot || !plan) {
       return [] as LeftoverOption[];
@@ -611,7 +664,7 @@ export function App() {
           <p className="eyebrow">Fridgestare</p>
           <h1>Weekly dinner control room</h1>
           <p className="subtle-copy">
-            {session?.user.email} · week starting {plan?.week_start_date ?? requestedWeek ?? 'not generated yet'}
+            {session?.user.email} · week starting {plan?.week_start_date ?? viewedWeek ?? 'not generated yet'}
           </p>
         </div>
         <div className="topbar-actions">
@@ -960,6 +1013,25 @@ export function App() {
                 </div>
               </div>
 
+              <div className="planner-toolbar">
+                <button className="secondary-button" type="button" onClick={() => void handleOpenCurrentWeek()} disabled={viewedWeek === null}>
+                  Current week
+                </button>
+                <button className="secondary-button" type="button" onClick={() => void handleOpenWeek(newerSavedPlan.week_start_date)} disabled={!newerSavedPlan}>
+                  Newer saved week
+                </button>
+                <button className="secondary-button" type="button" onClick={() => void handleOpenWeek(olderSavedPlan.week_start_date)} disabled={!olderSavedPlan}>
+                  Older saved week
+                </button>
+                <span className="subtle-copy">
+                  {plan
+                    ? `Browsing saved week ${activeHistoryIndex + 1} of ${planHistory.length}.`
+                    : planHistory.length
+                      ? `${planHistory.length} saved week${planHistory.length === 1 ? '' : 's'} available.`
+                      : 'No saved weeks yet.'}
+                </span>
+              </div>
+
               {plan ? (
                 <>
                   <div className="planner-toolbar">
@@ -1002,6 +1074,11 @@ export function App() {
                 <div className="empty-state">
                   <p>No weekly plan exists yet for next week.</p>
                   <button type="button" onClick={() => void handleGeneratePlan(false)}>Generate a plan</button>
+                  {latestSavedPlan ? (
+                    <button className="secondary-button" type="button" onClick={() => void handleOpenWeek(latestSavedPlan.week_start_date)}>
+                      Open latest saved week
+                    </button>
+                  ) : null}
                 </div>
               )}
             </section>

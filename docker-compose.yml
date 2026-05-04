@@ -24,7 +24,7 @@ services:
     volumes:
       - ./backend:/app
     working_dir: /app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: sh -c "python -m app.cli.main system bootstrap-db && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     depends_on:
       db:
         condition: service_healthy
