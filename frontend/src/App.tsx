@@ -104,6 +104,25 @@ function formatDate(dateString: string): string {
   return parseCalendarDate(dateString).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+function formatShortDate(dateString: string): string {
+  return parseCalendarDate(dateString).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function formatMonthLabel(dateString: string): string {
+  return parseCalendarDate(dateString).toLocaleDateString(undefined, { month: 'short' });
+}
+
+function formatDayNumber(dateString: string): string {
+  return parseCalendarDate(dateString).toLocaleDateString(undefined, { day: 'numeric' });
+}
+
+function formatWeekRange(weekStart: string): string {
+  const start = parseCalendarDate(weekStart);
+  const end = parseCalendarDate(weekStart);
+  end.setDate(end.getDate() + 6);
+  return `${formatShortDate(formatCalendarDateKey(start))} - ${formatShortDate(formatCalendarDateKey(end))}`;
+}
+
 function slotLabel(slot: PlanSlot): string {
   const dayIndex = parseCalendarDate(slot.slot_date).getDay();
   return `${dayNames[dayIndex === 0 ? 6 : dayIndex - 1]}`;
@@ -122,30 +141,30 @@ function slotCardTitle(slot: PlanSlot): string {
   return slot.title_snapshot;
 }
 
-function slotCardSummary(slot: PlanSlot): string {
+function slotBadgeLabel(slot: PlanSlot): string {
   if (slot.slot_type === 'empty') {
-    return 'Pick a meal, reroll the planner, or discover something new.';
+    return 'Open';
   }
   if (slot.slot_type === 'takeout') {
-    return 'Reserved for takeout.';
+    return 'Takeout';
   }
   if (slot.slot_type === 'leftover') {
-    return slot.selection_reason || 'Reusing an earlier meal as leftovers.';
+    return 'Leftovers';
   }
-  return slot.selection_reason || 'Planned for the week.';
+  return 'Meal';
 }
 
 function slotInspectorSummary(slot: PlanSlot): string {
   if (slot.slot_type === 'empty') {
-    return 'This day is still open. Replace it with a library meal, reroll, or use discovery to fill the slot.';
+    return 'Choose a meal, reroll this day, or use discovery to fill it.';
   }
   if (slot.slot_type === 'takeout') {
-    return 'This day is currently marked for takeout. You can keep it, replace it with a meal, or clear the slot.';
+    return 'This day is marked for takeout. Replace it with a meal or clear it.';
   }
   if (slot.slot_type === 'leftover') {
-    return slot.selection_reason || 'This slot is currently marked as leftovers. You can swap in a different leftover source, replace it with a meal, or clear it.';
+    return 'This day is currently using leftovers. You can choose a different source, replace it with a meal, or clear it.';
   }
-  return slot.selection_reason || 'Planner-selected meal for the week.';
+  return 'Swap the meal, reroll the day, or record what happened after dinner.';
 }
 
 function mealPayloadFromForm(form: typeof defaultMealForm) {
@@ -574,6 +593,8 @@ export function App() {
   const olderSavedPlan = activeHistoryIndex >= 0 && activeHistoryIndex < planHistory.length - 1
     ? planHistory[activeHistoryIndex + 1]
     : null;
+  const displayedWeek = plan?.week_start_date ?? viewedWeek;
+  const activeWeekRange = displayedWeek ? formatWeekRange(displayedWeek) : 'No week selected';
   const leftoverOptions = useMemo(() => {
     if (!selectedSlot || !plan) {
       return [] as LeftoverOption[];
@@ -662,9 +683,9 @@ export function App() {
       <header className="topbar">
         <div>
           <p className="eyebrow">Fridgestare</p>
-          <h1>Weekly dinner control room</h1>
+          <h1>Weekly meal calendar</h1>
           <p className="subtle-copy">
-            {session?.user.email} · week starting {plan?.week_start_date ?? viewedWeek ?? 'not generated yet'}
+            {session?.user.email} · {activeWeekRange}
           </p>
         </div>
         <div className="topbar-actions">
@@ -1008,24 +1029,44 @@ export function App() {
             <section className="panel planner-panel">
               <div className="panel-header planner-header">
                 <div>
-                  <h2>Weekly planner</h2>
-                  <p>Drag meals between days, reroll a slot, mark takeout, chat changes, and accept discoveries.</p>
+                  <p className="section-kicker">Planner</p>
+                  <h2>Week at a glance</h2>
+                  <p className="planner-range">{activeWeekRange}</p>
                 </div>
+                {plan ? <span className="selection-pill">{plan.slots.length} days planned</span> : null}
               </div>
 
               <div className="planner-toolbar">
                 <button className="secondary-button" type="button" onClick={() => void handleOpenCurrentWeek()} disabled={viewedWeek === null}>
                   Current week
                 </button>
-                <button className="secondary-button" type="button" onClick={() => void handleOpenWeek(newerSavedPlan.week_start_date)} disabled={!newerSavedPlan}>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => {
+                    if (newerSavedPlan) {
+                      void handleOpenWeek(newerSavedPlan.week_start_date);
+                    }
+                  }}
+                  disabled={!newerSavedPlan}
+                >
                   Newer saved week
                 </button>
-                <button className="secondary-button" type="button" onClick={() => void handleOpenWeek(olderSavedPlan.week_start_date)} disabled={!olderSavedPlan}>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => {
+                    if (olderSavedPlan) {
+                      void handleOpenWeek(olderSavedPlan.week_start_date);
+                    }
+                  }}
+                  disabled={!olderSavedPlan}
+                >
                   Older saved week
                 </button>
                 <span className="subtle-copy">
                   {plan
-                    ? `Browsing saved week ${activeHistoryIndex + 1} of ${planHistory.length}.`
+                    ? `Saved week ${activeHistoryIndex + 1} of ${planHistory.length}.`
                     : planHistory.length
                       ? `${planHistory.length} saved week${planHistory.length === 1 ? '' : 's'} available.`
                       : 'No saved weeks yet.'}
@@ -1050,25 +1091,25 @@ export function App() {
                         onDragOver={(event) => event.preventDefault()}
                         onDrop={() => void handleDrop(slot.id)}
                       >
-                        <div className="slot-head">
-                          <div>
+                        <div className="slot-calendar-row">
+                          <div className="slot-calendar-copy">
                             <p className="slot-day">{slotLabel(slot)}</p>
-                            <h3>{slotCardTitle(slot)}</h3>
+                            <p className="slot-date-inline">{formatMonthLabel(slot.slot_date)}</p>
                           </div>
-                          {selectedSlotId === slot.id ? <span className="slot-focus-pill">In focus</span> : null}
+                          <div className="slot-date-number">{formatDayNumber(slot.slot_date)}</div>
                         </div>
-                        <p className="slot-meta">{formatDate(slot.slot_date)}</p>
-                        <p className="slot-summary">{slotCardSummary(slot)}</p>
+                        <div className="slot-body">
+                          <h3>{slotCardTitle(slot)}</h3>
+                          {slot.notes_snapshot ? <p className="slot-note">{slot.notes_snapshot}</p> : null}
+                        </div>
                         <div className="slot-footer">
-                          {slot.outcome_status ? <span className="outcome-pill">Outcome: {slot.outcome_status}</span> : <span className="subtle-copy">Drag to reorder the week.</span>}
+                          <span className="slot-type-pill">{slotBadgeLabel(slot)}</span>
+                          {slot.outcome_status ? <span className="outcome-pill">{slot.outcome_status}</span> : null}
+                          {selectedSlotId === slot.id ? <span className="slot-focus-pill">Selected</span> : null}
                         </div>
                       </article>
                     ))}
                   </div>
-                  <details className="explanation-panel">
-                    <summary>Planner explanation</summary>
-                    <pre>{plan.planner_explanation}</pre>
-                  </details>
                 </>
               ) : (
                 <div className="empty-state">
@@ -1085,8 +1126,8 @@ export function App() {
 
             <section className="panel side-panel">
               <div className="panel-header">
-                <h2>Slot details and discovery</h2>
-                <p>Focus one day at a time to replace meals, reroll, discover something new, or record the outcome.</p>
+                <h2>Day details</h2>
+                <p>Keep one day in focus while you swap meals, reroll, discover something new, or log the outcome.</p>
               </div>
 
               <div className="panel-subsection slot-inspector">

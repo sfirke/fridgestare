@@ -189,6 +189,6 @@ describe('App', () => {
     expect(await screen.findByText('Latest Saved Plan')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Newer saved week' }).getAttribute('disabled')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Older saved week' }).getAttribute('disabled')).toBeNull();
-    expect(screen.getByText('Browsing saved week 1 of 2.')).not.toBeNull();
+    expect(screen.getByText('Saved week 1 of 2.')).not.toBeNull();
   });
 });
