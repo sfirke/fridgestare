@@ -3,10 +3,20 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.models.meal import Meal, MealSeasonalRecurrenceOverride
+from app.services.planner import score_meal
 from app.services.plans import current_planning_week_start
 
 
-def create_meal(client, csrf_token: str, title: str, tags: list[str], complexity: str = "intermediate"):
+def create_meal(
+    client,
+    csrf_token: str,
+    title: str,
+    tags: list[str],
+    complexity: str = "intermediate",
+    recurrence_tier: str = "regular",
+    seasonal_recurrence_overrides: list[dict] | None = None,
+):
     response = client.post(
         "/api/meals",
         headers={"X-CSRF-Token": csrf_token},
@@ -14,6 +24,8 @@ def create_meal(client, csrf_token: str, title: str, tags: list[str], complexity
             "title": title,
             "tags": tags,
             "complexity": complexity,
+            "recurrence_tier": recurrence_tier,
+            "seasonal_recurrence_overrides": seasonal_recurrence_overrides or [],
         },
     )
     assert response.status_code == 201
@@ -44,11 +56,22 @@ def test_meal_crud_and_tag_suggestions(authenticated_client: tuple) -> None:
     updated = client.patch(
         f"/api/meals/{created['id']}",
         headers={"X-CSRF-Token": csrf_token},
-        json={"recurrence_tier": "staple", "tags": ["cozy", "quick"]},
+        json={
+            "recurrence_tier": "staple",
+            "seasonal_recurrence_overrides": [
+                {"season": "winter", "recurrence_tier": "staple"},
+                {"season": "summer", "recurrence_tier": "none"},
+            ],
+            "tags": ["cozy", "quick"],
+        },
     )
     assert updated.status_code == 200
     updated_payload = updated.json()
     assert updated_payload["recurrence_tier"] == "staple"
+    assert updated_payload["seasonal_recurrence_overrides"] == [
+        {"season": "winter", "recurrence_tier": "staple"},
+        {"season": "summer", "recurrence_tier": "none"},
+    ]
     assert {tag["name"] for tag in updated_payload["tags"]} == {"cozy", "quick"}
 
     suggestions = client.get("/api/tags/suggestions")
@@ -59,6 +82,7 @@ def test_meal_crud_and_tag_suggestions(authenticated_client: tuple) -> None:
     exported = client.get("/api/meals/export.csv")
     assert exported.status_code == 200
     assert "Taco Soup" in exported.text
+    assert "summer_recurrence" in exported.text
 
     deleted = client.delete(
         f"/api/meals/{created['id']}",
@@ -89,6 +113,58 @@ def test_bulk_fast_add(authenticated_client: tuple) -> None:
     payload = response.json()
     assert len(payload) == 2
     assert {meal["title"] for meal in payload} == {"Chili", "Tacos"}
+
+
+def test_score_meal_uses_seasonal_recurrence_override() -> None:
+    meal = Meal(title="Lentil Soup", notes="", complexity="simple", recurrence_tier="regular")
+    meal.tag_links = []
+    meal.seasonal_recurrence_overrides = [
+        MealSeasonalRecurrenceOverride(season="winter", recurrence_tier="staple"),
+    ]
+    preferences = SimpleNamespace(
+        allow_simple=True,
+        allow_intermediate=True,
+        allow_complex=True,
+        planning_guidance_text="",
+    )
+
+    score, reason = score_meal(
+        meal,
+        date(2026, 12, 7),
+        {"takeout": False, "prefer_tags": [], "must_tags": [], "avoid_complex": False},
+        preferences,
+        [],
+        set(),
+    )
+
+    assert score == 3.0
+    assert "winter seasonal recurrence" in reason
+
+
+def test_score_meal_skips_none_effective_recurrence() -> None:
+    meal = Meal(title="Lentil Soup", notes="", complexity="simple", recurrence_tier="regular")
+    meal.tag_links = []
+    meal.seasonal_recurrence_overrides = [
+        MealSeasonalRecurrenceOverride(season="summer", recurrence_tier="none"),
+    ]
+    preferences = SimpleNamespace(
+        allow_simple=True,
+        allow_intermediate=True,
+        allow_complex=True,
+        planning_guidance_text="",
+    )
+
+    score, reason = score_meal(
+        meal,
+        date(2026, 7, 7),
+        {"takeout": False, "prefer_tags": [], "must_tags": [], "avoid_complex": False},
+        preferences,
+        [],
+        set(),
+    )
+
+    assert score == -10_000.0
+    assert reason == "Skipped because it is disabled for summer."
 
 
 def test_plan_generation_and_mutations(authenticated_client: tuple, monkeypatch: pytest.MonkeyPatch) -> None:

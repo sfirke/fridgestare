@@ -6,11 +6,14 @@ import type {
   DiscoveryCandidate,
   EmailPreview,
   Meal,
+  MealSeasonalRecurrenceOverride,
   MeResponse,
   Plan,
   PlanSlot,
   PlanSummary,
+  RecurrenceTier,
   RecurringRule,
+  SeasonName,
   UserPreferences,
 } from './types/api';
 import './styles.css';
@@ -39,6 +42,44 @@ const dashboardViews: Array<{ id: DashboardView; label: string; description: str
   { id: 'preferences', label: 'Preferences', description: 'Guidance, email settings, and recurring rules.' },
 ];
 
+const seasonOptions: Array<{ id: SeasonName; label: string }> = [
+  { id: 'winter', label: 'Winter' },
+  { id: 'spring', label: 'Spring' },
+  { id: 'summer', label: 'Summer' },
+  { id: 'fall', label: 'Fall' },
+];
+
+const recurrenceOptions: Array<{ value: RecurrenceTier; label: string }> = [
+  { value: 'staple', label: 'Staple' },
+  { value: 'regular', label: 'Regular' },
+  { value: 'treat', label: 'Treat' },
+  { value: 'none', label: 'None' },
+];
+
+type MealFormSeasonalOverrides = Record<SeasonName, '' | RecurrenceTier>;
+
+type MealForm = {
+  title: string;
+  notes: string;
+  complexity: string;
+  recurrence_tier: RecurrenceTier;
+  seasonal_recurrence_overrides: MealFormSeasonalOverrides;
+  source_note: string;
+  source_url: string;
+  dietary_exclusions: string;
+  tags: string;
+};
+
+
+function createDefaultSeasonalRecurrenceOverrides(): MealFormSeasonalOverrides {
+  return {
+    winter: '',
+    spring: '',
+    summer: '',
+    fall: '',
+  };
+}
+
 const defaultPreferences: UserPreferences = {
   novel_meal_ratio: 0.15,
   takeout_frequency_per_week: 1,
@@ -54,17 +95,19 @@ const defaultPreferences: UserPreferences = {
   updated_at: '',
 };
 
-const defaultMealForm = {
-  title: '',
-  notes: '',
-  complexity: 'intermediate',
-  recurrence_tier: 'regular',
-  seasonality_mode: 'balanced',
-  source_note: '',
-  source_url: '',
-  dietary_exclusions: '',
-  tags: '',
-};
+function createDefaultMealForm(): MealForm {
+  return {
+    title: '',
+    notes: '',
+    complexity: 'intermediate',
+    recurrence_tier: 'regular',
+    seasonal_recurrence_overrides: createDefaultSeasonalRecurrenceOverrides(),
+    source_note: '',
+    source_url: '',
+    dietary_exclusions: '',
+    tags: '',
+  };
+}
 
 function parseWeekFromPath(): string | null {
   const match = window.location.pathname.match(/^\/plans\/(\d{4}-\d{2}-\d{2})$/);
@@ -173,13 +216,54 @@ function slotInspectorSummary(slot: PlanSlot): string {
   return 'Swap the meal, reroll the day, or record what happened after dinner.';
 }
 
-function mealPayloadFromForm(form: typeof defaultMealForm) {
+function mealOverridesFromForm(form: MealForm): MealSeasonalRecurrenceOverride[] {
+  return seasonOptions.flatMap((season) => {
+    const recurrenceTier = form.seasonal_recurrence_overrides[season.id];
+    if (!recurrenceTier) {
+      return [];
+    }
+    return [{ season: season.id, recurrence_tier: recurrenceTier }];
+  });
+}
+
+
+function mealFormFromMeal(meal: Meal): MealForm {
+  const seasonalOverrides = createDefaultSeasonalRecurrenceOverrides();
+  for (const override of meal.seasonal_recurrence_overrides) {
+    seasonalOverrides[override.season] = override.recurrence_tier;
+  }
+  return {
+    title: meal.title,
+    notes: meal.notes,
+    complexity: meal.complexity,
+    recurrence_tier: meal.recurrence_tier,
+    seasonal_recurrence_overrides: seasonalOverrides,
+    source_note: meal.source_note,
+    source_url: meal.source_url,
+    dietary_exclusions: meal.dietary_exclusions.join(', '),
+    tags: meal.tags.map((tag) => tag.name).join(', '),
+  };
+}
+
+
+function mealSeasonalOverrideSummary(meal: Meal): string | null {
+  if (meal.seasonal_recurrence_overrides.length === 0) {
+    return null;
+  }
+  const seasonLabels = Object.fromEntries(seasonOptions.map((season) => [season.id, season.label])) as Record<SeasonName, string>;
+  return meal.seasonal_recurrence_overrides
+    .map((override) => `${seasonLabels[override.season]}: ${override.recurrence_tier}`)
+    .join(', ');
+}
+
+
+function mealPayloadFromForm(form: MealForm) {
   return {
     title: form.title,
     notes: form.notes,
     complexity: form.complexity,
     recurrence_tier: form.recurrence_tier,
-    seasonality_mode: form.seasonality_mode,
+    seasonal_recurrence_overrides: mealOverridesFromForm(form),
     source_note: form.source_note,
     source_url: form.source_url,
     dietary_exclusions: form.dietary_exclusions
@@ -205,7 +289,7 @@ export function App() {
   const [previousPlan, setPreviousPlan] = useState<Plan | null>(null);
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
-  const [mealForm, setMealForm] = useState(defaultMealForm);
+  const [mealForm, setMealForm] = useState<MealForm>(createDefaultMealForm);
   const [selectedMealId, setSelectedMealId] = useState<number | null>(null);
   const [bulkText, setBulkText] = useState('');
   const [mealFilter, setMealFilter] = useState({ complexity: '', tag: '' });
@@ -415,7 +499,7 @@ export function App() {
         await api.createMeal(mealPayloadFromForm(mealForm));
         setStatusMessage('Meal added.');
       }
-      setMealForm(defaultMealForm);
+      setMealForm(createDefaultMealForm());
       setSelectedMealId(null);
       await refreshMeals();
       const tags = await api.getTagSuggestions();
@@ -971,7 +1055,7 @@ export function App() {
             <div className="section-header-inline">
               <h3>{selectedMealId ? 'Edit meal' : 'Add meal'}</h3>
               {selectedMealId ? (
-                <button className="ghost-button" type="button" onClick={() => { setSelectedMealId(null); setMealForm(defaultMealForm); }}>
+                <button className="ghost-button" type="button" onClick={() => { setSelectedMealId(null); setMealForm(createDefaultMealForm()); }}>
                   Clear
                 </button>
               ) : null}
@@ -979,12 +1063,40 @@ export function App() {
             <div className="form-grid">
               <label><span>Title</span><input value={mealForm.title} onChange={(event) => setMealForm((current) => ({ ...current, title: event.target.value }))} required /></label>
               <label><span>Complexity</span><select value={mealForm.complexity} onChange={(event) => setMealForm((current) => ({ ...current, complexity: event.target.value }))}><option value="simple">Simple</option><option value="intermediate">Intermediate</option><option value="complex">Complex</option></select></label>
-              <label><span>Recurrence</span><select value={mealForm.recurrence_tier} onChange={(event) => setMealForm((current) => ({ ...current, recurrence_tier: event.target.value }))}><option value="staple">Staple</option><option value="regular">Regular</option><option value="treat">Treat</option></select></label>
-              <label><span>Seasonality</span><input value={mealForm.seasonality_mode} onChange={(event) => setMealForm((current) => ({ ...current, seasonality_mode: event.target.value }))} /></label>
+              <label>
+                <span>Base recurrence</span>
+                <select value={mealForm.recurrence_tier} onChange={(event) => setMealForm((current) => ({ ...current, recurrence_tier: event.target.value as RecurrenceTier }))}>
+                  {recurrenceOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
               <label><span>Tags</span><input value={mealForm.tags} onChange={(event) => setMealForm((current) => ({ ...current, tags: event.target.value }))} placeholder={tagSuggestions.slice(0, 5).join(', ')} /></label>
               <label><span>Dietary exclusions</span><input value={mealForm.dietary_exclusions} onChange={(event) => setMealForm((current) => ({ ...current, dietary_exclusions: event.target.value }))} placeholder="mushrooms, gluten" /></label>
               <label><span>Source note</span><input value={mealForm.source_note} onChange={(event) => setMealForm((current) => ({ ...current, source_note: event.target.value }))} /></label>
               <label><span>Source URL</span><input value={mealForm.source_url} onChange={(event) => setMealForm((current) => ({ ...current, source_url: event.target.value }))} /></label>
+            </div>
+            <div className="form-grid compact-grid">
+              {seasonOptions.map((season) => (
+                <label key={season.id}>
+                  <span>{season.label} override</span>
+                  <select
+                    value={mealForm.seasonal_recurrence_overrides[season.id]}
+                    onChange={(event) => setMealForm((current) => ({
+                      ...current,
+                      seasonal_recurrence_overrides: {
+                        ...current.seasonal_recurrence_overrides,
+                        [season.id]: event.target.value as '' | RecurrenceTier,
+                      },
+                    }))}
+                  >
+                    <option value="">Use base</option>
+                    {recurrenceOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+              ))}
             </div>
             <label>
               <span>Notes</span>
@@ -1012,6 +1124,7 @@ export function App() {
                 <div>
                   <h3>{meal.title}</h3>
                   <p>{meal.notes || 'No notes yet.'}</p>
+                  {mealSeasonalOverrideSummary(meal) ? <p>Seasonal overrides: {mealSeasonalOverrideSummary(meal)}</p> : null}
                   <div className="chip-row">
                     <span className="chip">{meal.complexity}</span>
                     <span className="chip">{meal.recurrence_tier}</span>
@@ -1027,17 +1140,7 @@ export function App() {
                     type="button"
                     onClick={() => {
                       setSelectedMealId(meal.id);
-                      setMealForm({
-                        title: meal.title,
-                        notes: meal.notes,
-                        complexity: meal.complexity,
-                        recurrence_tier: meal.recurrence_tier,
-                        seasonality_mode: meal.seasonality_mode,
-                        source_note: meal.source_note,
-                        source_url: meal.source_url,
-                        dietary_exclusions: meal.dietary_exclusions.join(', '),
-                        tags: meal.tags.map((tag) => tag.name).join(', '),
-                      });
+                      setMealForm(mealFormFromMeal(meal));
                     }}
                   >
                     Edit

@@ -90,6 +90,16 @@ def meal_tags(meal: Meal) -> set[str]:
     return {link.tag.name for link in meal.tag_links if link.tag is not None}
 
 
+def effective_recurrence_tier(meal: Meal, slot_date: date) -> tuple[str, str, bool]:
+    season = SEASON_INDEX[slot_date.month]
+    override_map = {
+        override.season: override.recurrence_tier
+        for override in meal.seasonal_recurrence_overrides
+    }
+    effective = override_map.get(season, meal.recurrence_tier)
+    return effective, season, season in override_map
+
+
 def score_meal(
     meal: Meal,
     slot_date: date,
@@ -104,19 +114,17 @@ def score_meal(
     if not complexity_allowed(preferences, meal, rule_info):
         return (-10_000.0, "Skipped because the meal complexity is not allowed.")
 
-    score = RECURRENCE_WEIGHTS.get(meal.recurrence_tier, 1.5)
+    recurrence_tier, season, uses_seasonal_override = effective_recurrence_tier(meal, slot_date)
+    if recurrence_tier == "none":
+        return (-10_000.0, f"Skipped because it is disabled for {season}.")
+
+    score = RECURRENCE_WEIGHTS.get(recurrence_tier, 1.5)
     notes: list[str] = []
+    if uses_seasonal_override:
+        notes.append(f"uses its {season} seasonal recurrence")
     if meal.id in selected_meal_ids:
         score -= 8
         notes.append("already used this week")
-    season = SEASON_INDEX[slot_date.month]
-    season_weight = next(
-        (pref.weight for pref in meal.season_preferences if pref.season == season),
-        1.0,
-    )
-    score += season_weight
-    if season_weight != 1.0:
-        notes.append(f"seasonal fit for {season}")
     if rule_info["prefer_tags"] and tags.intersection(rule_info["prefer_tags"]):
         score += 2.5
         notes.append("matches day-specific tag guidance")
@@ -307,7 +315,7 @@ def generate_plan_payload(session: Session, user: User, week_start_date: date) -
         raise ValueError("User preferences must exist before planning.")
     meals = (
         session.query(Meal)
-        .options(joinedload(Meal.tag_links).joinedload(MealTagLink.tag), joinedload(Meal.season_preferences))
+        .options(joinedload(Meal.tag_links).joinedload(MealTagLink.tag), joinedload(Meal.seasonal_recurrence_overrides))
         .filter(Meal.user_id == user.id, Meal.is_archived.is_(False))
         .order_by(Meal.title.asc())
         .all()

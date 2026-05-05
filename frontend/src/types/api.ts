@@ -50,14 +50,23 @@ export type MealTag = {
   name: string;
 };
 
+export type SeasonName = 'winter' | 'spring' | 'summer' | 'fall';
+
+export type RecurrenceTier = 'none' | 'treat' | 'regular' | 'staple';
+
+export type MealSeasonalRecurrenceOverride = {
+  season: SeasonName;
+  recurrence_tier: RecurrenceTier;
+};
+
 export type Meal = {
   id: number;
   title: string;
   notes: string;
   meal_type: string;
   complexity: string;
-  recurrence_tier: string;
-  seasonality_mode: string;
+  recurrence_tier: RecurrenceTier;
+  seasonal_recurrence_overrides: MealSeasonalRecurrenceOverride[];
   dietary_exclusions: string[];
   source_note: string;
   source_url: string;

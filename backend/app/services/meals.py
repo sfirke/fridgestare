@@ -4,8 +4,8 @@ from io import StringIO
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.meal import Meal, MealTag, MealTagLink
-from app.schemas.meal import MealCreate, MealOut, MealTagOut, MealUpdate
+from app.models.meal import Meal, MealSeasonalRecurrenceOverride, MealTag, MealTagLink, SEASONS
+from app.schemas.meal import MealCreate, MealOut, MealSeasonalRecurrenceOverride as MealSeasonalRecurrenceOverrideSchema, MealTagOut, MealUpdate
 
 STARTER_TAGS = [
     "soup",
@@ -24,7 +24,10 @@ def normalize_tag_name(name: str) -> str:
 def load_meal_for_user(session: Session, user_id: int, meal_id: int) -> Meal:
     meal = (
         session.query(Meal)
-        .options(joinedload(Meal.tag_links).joinedload(MealTagLink.tag))
+        .options(
+            joinedload(Meal.tag_links).joinedload(MealTagLink.tag),
+            joinedload(Meal.seasonal_recurrence_overrides),
+        )
         .filter(Meal.user_id == user_id, Meal.id == meal_id)
         .one_or_none()
     )
@@ -60,6 +63,45 @@ def replace_meal_tags(session: Session, meal: Meal, tag_names: list[str]) -> Non
         meal.tag_links.append(MealTagLink(tag_id=tag.id, meal_id=meal.id, tag=tag))
 
 
+def replace_seasonal_recurrence_overrides(
+    meal: Meal,
+    overrides: list[MealSeasonalRecurrenceOverrideSchema],
+) -> None:
+    meal.seasonal_recurrence_overrides.clear()
+    for override in overrides:
+        meal.seasonal_recurrence_overrides.append(
+            MealSeasonalRecurrenceOverride(
+                meal_id=meal.id,
+                season=override.season,
+                recurrence_tier=override.recurrence_tier,
+            )
+        )
+
+
+def sorted_seasonal_recurrence_overrides(
+    meal: Meal,
+) -> list[MealSeasonalRecurrenceOverrideSchema]:
+    override_map = {
+        override.season: override
+        for override in meal.seasonal_recurrence_overrides
+    }
+    return [
+        MealSeasonalRecurrenceOverrideSchema(
+            season=season,
+            recurrence_tier=override_map[season].recurrence_tier,
+        )
+        for season in SEASONS
+        if season in override_map
+    ]
+
+
+def seasonal_recurrence_override_map(meal: Meal) -> dict[str, str]:
+    return {
+        override.season: override.recurrence_tier
+        for override in meal.seasonal_recurrence_overrides
+    }
+
+
 def meal_to_schema(meal: Meal) -> MealOut:
     tags = [MealTagOut(id=link.tag.id, name=link.tag.name) for link in meal.tag_links if link.tag is not None]
     return MealOut(
@@ -69,7 +111,7 @@ def meal_to_schema(meal: Meal) -> MealOut:
         meal_type=meal.meal_type,
         complexity=meal.complexity,
         recurrence_tier=meal.recurrence_tier,
-        seasonality_mode=meal.seasonality_mode,
+        seasonal_recurrence_overrides=sorted_seasonal_recurrence_overrides(meal),
         dietary_exclusions=meal.dietary_exclusions,
         source_note=meal.source_note,
         source_url=meal.source_url,
@@ -88,7 +130,6 @@ def create_meal(session: Session, user_id: int, payload: MealCreate, agent_sourc
         notes=payload.notes,
         complexity=payload.complexity,
         recurrence_tier=payload.recurrence_tier,
-        seasonality_mode=payload.seasonality_mode,
         dietary_exclusions=payload.dietary_exclusions,
         source_note=payload.source_note,
         source_url=payload.source_url,
@@ -97,6 +138,7 @@ def create_meal(session: Session, user_id: int, payload: MealCreate, agent_sourc
     session.add(meal)
     session.flush()
     replace_meal_tags(session, meal, payload.tags)
+    replace_seasonal_recurrence_overrides(meal, payload.seasonal_recurrence_overrides)
     session.commit()
     return load_meal_for_user(session, user_id, meal.id)
 
@@ -110,7 +152,6 @@ def bulk_fast_add(session: Session, user_id: int, payloads: list[MealCreate]) ->
             notes=payload.notes,
             complexity=payload.complexity,
             recurrence_tier=payload.recurrence_tier,
-            seasonality_mode=payload.seasonality_mode,
             dietary_exclusions=payload.dietary_exclusions,
             source_note=payload.source_note,
             source_url=payload.source_url,
@@ -118,6 +159,7 @@ def bulk_fast_add(session: Session, user_id: int, payloads: list[MealCreate]) ->
         session.add(meal)
         session.flush()
         replace_meal_tags(session, meal, payload.tags)
+        replace_seasonal_recurrence_overrides(meal, payload.seasonal_recurrence_overrides)
         meals.append(meal)
     session.commit()
     return [load_meal_for_user(session, user_id, meal.id) for meal in meals]
@@ -131,7 +173,14 @@ def list_meals(
     recurrence_tier: str | None = None,
     tag: str | None = None,
 ) -> list[Meal]:
-    query = session.query(Meal).options(joinedload(Meal.tag_links).joinedload(MealTagLink.tag)).filter(Meal.user_id == user_id)
+    query = (
+        session.query(Meal)
+        .options(
+            joinedload(Meal.tag_links).joinedload(MealTagLink.tag),
+            joinedload(Meal.seasonal_recurrence_overrides),
+        )
+        .filter(Meal.user_id == user_id)
+    )
     if not include_archived:
         query = query.filter(Meal.is_archived.is_(False))
     if complexity:
@@ -149,10 +198,16 @@ def update_meal(session: Session, user_id: int, meal_id: int, payload: MealUpdat
     meal = load_meal_for_user(session, user_id, meal_id)
     updates = payload.model_dump(exclude_unset=True)
     tags = updates.pop("tags", None)
+    seasonal_recurrence_overrides = updates.pop("seasonal_recurrence_overrides", None)
     for field_name, value in updates.items():
         setattr(meal, field_name, value)
     if tags is not None:
         replace_meal_tags(session, meal, tags)
+    if seasonal_recurrence_overrides is not None:
+        replace_seasonal_recurrence_overrides(
+            meal,
+            [MealSeasonalRecurrenceOverrideSchema.model_validate(override) for override in seasonal_recurrence_overrides],
+        )
     session.add(meal)
     session.commit()
     return load_meal_for_user(session, user_id, meal.id)
@@ -175,7 +230,10 @@ def export_meals_csv(session: Session, user_id: int) -> str:
             "title",
             "complexity",
             "recurrence_tier",
-            "seasonality_mode",
+            "winter_recurrence",
+            "spring_recurrence",
+            "summer_recurrence",
+            "fall_recurrence",
             "tags",
             "dietary_exclusions",
             "notes",
@@ -188,13 +246,17 @@ def export_meals_csv(session: Session, user_id: int) -> str:
         ]
     )
     for meal in meals:
+        override_map = seasonal_recurrence_override_map(meal)
         writer.writerow(
             [
                 meal.id,
                 meal.title,
                 meal.complexity,
                 meal.recurrence_tier,
-                meal.seasonality_mode,
+                override_map.get("winter", ""),
+                override_map.get("spring", ""),
+                override_map.get("summer", ""),
+                override_map.get("fall", ""),
                 ", ".join(sorted(link.tag.name for link in meal.tag_links if link.tag)),
                 " | ".join(meal.dietary_exclusions),
                 meal.notes,

@@ -134,7 +134,7 @@ def reroll_slot(session: Session, user: User, plan_id: int, slot_id: int) -> Wee
 
     meals = (
         session.query(Meal)
-        .options(joinedload(Meal.tag_links).joinedload(MealTagLink.tag), joinedload(Meal.season_preferences))
+        .options(joinedload(Meal.tag_links).joinedload(MealTagLink.tag), joinedload(Meal.seasonal_recurrence_overrides))
         .filter(Meal.user_id == user.id, Meal.is_archived.is_(False))
         .all()
     )

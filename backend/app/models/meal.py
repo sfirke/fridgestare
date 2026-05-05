@@ -1,9 +1,12 @@
 from typing import Any
 
-from sqlalchemy import Boolean, Float, ForeignKey, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
+
+SEASONS = ("winter", "spring", "summer", "fall")
+RECURRENCE_TIERS = ("none", "treat", "regular", "staple")
 
 
 class Meal(TimestampMixin, Base):
@@ -16,7 +19,6 @@ class Meal(TimestampMixin, Base):
     meal_type: Mapped[str] = mapped_column(String(30), default="dinner", nullable=False)
     complexity: Mapped[str] = mapped_column(String(20), default="intermediate", nullable=False)
     recurrence_tier: Mapped[str] = mapped_column(String(20), default="regular", nullable=False)
-    seasonality_mode: Mapped[str] = mapped_column(String(20), default="balanced", nullable=False)
     dietary_exclusions: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     source_note: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     source_url: Mapped[str] = mapped_column(String(500), default="", nullable=False)
@@ -27,7 +29,7 @@ class Meal(TimestampMixin, Base):
         back_populates="meal",
         cascade="all, delete-orphan",
     )
-    season_preferences: Mapped[list["MealSeasonPreference"]] = relationship(
+    seasonal_recurrence_overrides: Mapped[list["MealSeasonalRecurrenceOverride"]] = relationship(
         back_populates="meal",
         cascade="all, delete-orphan",
     )
@@ -52,11 +54,11 @@ class MealTagLink(Base):
     tag: Mapped[MealTag] = relationship()
 
 
-class MealSeasonPreference(Base):
-    __tablename__ = "meal_season_preferences"
+class MealSeasonalRecurrenceOverride(Base):
+    __tablename__ = "meal_seasonal_recurrence_overrides"
 
     meal_id: Mapped[int] = mapped_column(ForeignKey("meals.id", ondelete="CASCADE"), primary_key=True)
     season: Mapped[str] = mapped_column(String(20), primary_key=True)
-    weight: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    recurrence_tier: Mapped[str] = mapped_column(String(20), nullable=False)
 
-    meal: Mapped[Meal] = relationship(back_populates="season_preferences")
+    meal: Mapped[Meal] = relationship(back_populates="seasonal_recurrence_overrides")
