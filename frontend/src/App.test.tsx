@@ -109,14 +109,14 @@ describe('App', () => {
         .mockResolvedValueOnce(jsonResponse([]))
         .mockResolvedValueOnce(jsonResponse([]))
         .mockResolvedValueOnce(jsonResponse([]))
-        .mockResolvedValueOnce(jsonResponse({ detail: 'No plan for next week' }, 404)),
+        .mockResolvedValueOnce(jsonResponse({ detail: 'No plan for the active planning week' }, 404)),
     );
 
     render(<App />);
 
     const plannerTab = await screen.findByRole('tab', { name: 'Planner Week view, chat, discovery, and email.' });
     expect(plannerTab.getAttribute('aria-selected')).toBe('true');
-    expect(await screen.findByText('No weekly plan exists yet for next week.')).not.toBeNull();
+    expect(await screen.findByText('No weekly plan exists yet for this planning week.')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Generate a plan' })).not.toBeNull();
     expect(screen.getByRole('tab', { name: 'Meals Library management and meal entry.' })).not.toBeNull();
     expect(screen.getByRole('tab', { name: 'Preferences Guidance, email settings, and recurring rules.' })).not.toBeNull();

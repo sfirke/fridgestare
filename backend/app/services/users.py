@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, time
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -6,6 +7,17 @@ from sqlalchemy.orm import Session
 from app.models.user import RecurringRule, User, UserPreferences
 from app.schemas.user import RecurringRuleIn, UserPreferencesUpdate
 from app.services.auth import create_user_password_hash
+
+
+def validate_timezone_name(timezone: str) -> str:
+    candidate = timezone.strip()
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Timezone is required")
+    try:
+        ZoneInfo(candidate)
+    except ZoneInfoNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid timezone") from error
+    return candidate
 
 
 def get_user_by_email(session: Session, email: str) -> User | None:
@@ -37,7 +49,7 @@ def create_user(
         email=email.strip().lower(),
         password_hash=create_user_password_hash(password),
         is_admin=is_admin,
-        timezone=timezone,
+        timezone=validate_timezone_name(timezone),
         week_starts_on=week_starts_on,
     )
     session.add(user)
@@ -67,7 +79,14 @@ def create_user(
 def update_preferences(session: Session, user: User, payload: UserPreferencesUpdate) -> UserPreferences:
     preferences = ensure_preferences(session, user)
     for field_name, value in payload.model_dump(exclude_unset=True).items():
+        if field_name == "timezone":
+            user.timezone = validate_timezone_name(str(value))
+            continue
+        if field_name == "week_starts_on":
+            user.week_starts_on = int(value)
+            continue
         setattr(preferences, field_name, value)
+    session.add(user)
     session.add(preferences)
     session.commit()
     session.refresh(preferences)

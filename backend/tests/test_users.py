@@ -9,6 +9,8 @@ def test_patch_preferences(authenticated_client: tuple) -> None:
             "takeout_frequency_per_week": 2,
             "leftovers_per_week": 2,
             "planning_guidance_text": "Tuesday tacos.",
+            "timezone": "America/Los_Angeles",
+            "week_starts_on": 1,
         },
     )
 
@@ -18,6 +20,12 @@ def test_patch_preferences(authenticated_client: tuple) -> None:
     assert payload["takeout_frequency_per_week"] == 2
     assert payload["leftovers_per_week"] == 2
     assert payload["planning_guidance_text"] == "Tuesday tacos."
+
+    me_response = client.get("/api/me")
+    assert me_response.status_code == 200
+    me_payload = me_response.json()
+    assert me_payload["user"]["timezone"] == "America/Los_Angeles"
+    assert me_payload["user"]["week_starts_on"] == 1
 
 
 def test_replace_schedule_rules(authenticated_client: tuple) -> None:

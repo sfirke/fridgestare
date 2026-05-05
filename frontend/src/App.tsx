@@ -31,6 +31,7 @@ type LeftoverOption = {
 type DashboardView = 'planner' | 'meals' | 'preferences';
 
 const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const shortDayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const dashboardViews: Array<{ id: DashboardView; label: string; description: string }> = [
   { id: 'planner', label: 'Planner', description: 'Week view, chat, discovery, and email.' },
@@ -128,6 +129,11 @@ function slotLabel(slot: PlanSlot): string {
   return `${dayNames[dayIndex === 0 ? 6 : dayIndex - 1]}`;
 }
 
+function slotCalendarLabel(slot: PlanSlot): string {
+  const dayIndex = parseCalendarDate(slot.slot_date).getDay();
+  return `${shortDayNames[dayIndex === 0 ? 6 : dayIndex - 1]}`;
+}
+
 function slotCardTitle(slot: PlanSlot): string {
   if (slot.slot_type === 'empty') {
     return 'Open slot';
@@ -215,6 +221,7 @@ export function App() {
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [viewedWeek, setViewedWeek] = useState<string | null>(() => parseWeekFromPath());
+  const [timezoneDraft, setTimezoneDraft] = useState('UTC');
 
   async function syncPlanContext(nextPlan: Plan | null) {
     setPlan(nextPlan);
@@ -245,6 +252,7 @@ export function App() {
     const [mealsResponse, tags, history] = await Promise.all([api.listMeals(), api.getTagSuggestions(), api.listPlans()]);
     await loadPlanView(targetWeek);
     setSession(me);
+    setTimezoneDraft(me.user.timezone ?? 'UTC');
     setPreferencesDraft(me.preferences);
     setRulesDraft(
       me.recurring_rules.map((rule) => ({
@@ -348,6 +356,7 @@ export function App() {
       setPlanHistory([]);
       setPreviousPlan(null);
       setMeals([]);
+      setTimezoneDraft('UTC');
       setViewedWeek(null);
       syncBrowserWeekPath(null, 'replace');
       setStatusMessage('Logged out.');
@@ -372,10 +381,22 @@ export function App() {
         email_enabled: preferencesDraft.email_enabled,
         email_day_of_week: preferencesDraft.email_day_of_week,
         email_local_time: preferencesDraft.email_local_time,
+        timezone: timezoneDraft,
       });
       const updatedRules = await api.replaceRecurringRules(rulesDraft);
       if (session) {
-        setSession({ ...session, preferences: updatedPreferences, recurring_rules: updatedRules });
+        setSession({
+          ...session,
+          user: {
+            ...session.user,
+            timezone: timezoneDraft,
+          },
+          preferences: updatedPreferences,
+          recurring_rules: updatedRules,
+        });
+      }
+      if (viewedWeek === null) {
+        await loadPlanView(null);
       }
       setStatusMessage('Preferences saved.');
     } catch (error) {
@@ -787,6 +808,14 @@ export function App() {
                 />
               </label>
               <label>
+                <span>Planning timezone</span>
+                <input
+                  value={timezoneDraft}
+                  onChange={(event) => setTimezoneDraft(event.target.value)}
+                  placeholder="America/Los_Angeles"
+                />
+              </label>
+              <label>
                 <span>Email day</span>
                 <select
                   value={preferencesDraft.email_day_of_week}
@@ -1093,7 +1122,7 @@ export function App() {
                       >
                         <div className="slot-calendar-row">
                           <div className="slot-calendar-copy">
-                            <p className="slot-day">{slotLabel(slot)}</p>
+                            <p className="slot-day">{slotCalendarLabel(slot)}</p>
                             <p className="slot-date-inline">{formatMonthLabel(slot.slot_date)}</p>
                           </div>
                           <div className="slot-date-number">{formatDayNumber(slot.slot_date)}</div>
@@ -1113,7 +1142,7 @@ export function App() {
                 </>
               ) : (
                 <div className="empty-state">
-                  <p>No weekly plan exists yet for next week.</p>
+                  <p>No weekly plan exists yet for this planning week.</p>
                   <button type="button" onClick={() => void handleGeneratePlan(false)}>Generate a plan</button>
                   {latestSavedPlan ? (
                     <button className="secondary-button" type="button" onClick={() => void handleOpenWeek(latestSavedPlan.week_start_date)}>

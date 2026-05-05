@@ -46,6 +46,8 @@ class UserPreferencesUpdate(BaseModel):
     email_enabled: bool | None = None
     email_day_of_week: int | None = Field(default=None, ge=0, le=6)
     email_local_time: time | None = None
+    timezone: str | None = None
+    week_starts_on: int | None = Field(default=None, ge=0, le=6)
 
 
 class RecurringRuleIn(BaseModel):

@@ -3,21 +3,21 @@
 :root {
   color-scheme: light;
   font-family: 'Manrope', 'Avenir Next', 'Segoe UI', sans-serif;
-  background-color: #f3f0e8;
-  color: #1f2722;
-  --bg: #f3f0e8;
-  --surface: rgba(255, 252, 246, 0.82);
-  --surface-strong: #fffdfa;
-  --surface-muted: #ece7dc;
-  --border: rgba(31, 39, 34, 0.12);
-  --border-strong: rgba(31, 39, 34, 0.18);
-  --text: #1f2722;
-  --muted: #627065;
-  --accent: #254f3d;
-  --accent-strong: #173226;
-  --accent-soft: #dce9e1;
-  --leftover-soft: #edf3ea;
-  --takeout-soft: #fbf0e4;
+  background-color: #eef0ea;
+  color: #223028;
+  --bg: #eef0ea;
+  --surface: rgba(251, 250, 246, 0.84);
+  --surface-strong: #fbfaf6;
+  --surface-muted: #e2e8de;
+  --border: rgba(34, 48, 40, 0.12);
+  --border-strong: rgba(34, 48, 40, 0.2);
+  --text: #223028;
+  --muted: #617067;
+  --accent: #3f5b46;
+  --accent-strong: #2d4132;
+  --accent-soft: #d9e4d8;
+  --leftover-soft: #e6eee4;
+  --takeout-soft: #efe2cf;
   --error: #a84430;
   --shadow-soft: 0 24px 60px rgba(58, 53, 40, 0.08);
   --shadow-card: 0 14px 30px rgba(58, 53, 40, 0.06);
@@ -39,8 +39,8 @@ body {
   min-height: 100vh;
   background-color: var(--bg);
   background-image:
-    radial-gradient(circle at top left, rgba(37, 79, 61, 0.08), transparent 30%),
-    radial-gradient(circle at 86% 14%, rgba(181, 161, 123, 0.12), transparent 22%),
+    radial-gradient(circle at top left, rgba(63, 91, 70, 0.1), transparent 32%),
+    radial-gradient(circle at 84% 12%, rgba(164, 151, 118, 0.12), transparent 24%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.42));
   color: var(--text);
 }
@@ -251,7 +251,7 @@ li {
 
 .planner-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(340px, 420px);
+  grid-template-columns: 1fr;
   gap: 1rem;
   align-items: start;
 }
@@ -428,7 +428,7 @@ li {
   border: 1px solid var(--border);
   border-radius: 18px;
   padding: 0.75rem;
-  background: rgba(246, 243, 236, 0.86);
+  background: rgba(242, 244, 238, 0.92);
 }
 
 .planner-toolbar .subtle-copy {
@@ -442,7 +442,7 @@ li {
 }
 
 .slot-card {
-  min-height: 220px;
+  min-height: 208px;
   display: flex;
   flex-direction: column;
   gap: 0.95rem;
@@ -486,13 +486,16 @@ li {
   display: flex;
   flex-direction: column;
   gap: 0.18rem;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .slot-day {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.84rem;
   font-weight: 700;
   letter-spacing: -0.01em;
+  line-height: 1.15;
   color: var(--text);
 }
 
@@ -508,6 +511,7 @@ li {
   font-size: 2.25rem;
   line-height: 1;
   color: var(--accent-strong);
+  flex: 0 0 auto;
 }
 
 .slot-body {
@@ -578,8 +582,23 @@ li {
 }
 
 .slot-inspector {
-  position: sticky;
-  top: 1.25rem;
+  position: static;
+  top: auto;
+}
+
+.side-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.side-panel > * {
+  min-width: 0;
+}
+
+.side-panel > .panel-header,
+.side-panel > .chat-history {
+  grid-column: 1 / -1;
 }
 
 .inspector-actions button {
@@ -643,16 +662,12 @@ ul {
 }
 
 @media (max-width: 1240px) {
-  .planner-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .slot-inspector {
-    position: static;
-  }
-
   .planner-board {
     grid-template-columns: repeat(4, minmax(180px, 1fr));
+  }
+
+  .side-panel {
+    grid-template-columns: 1fr;
   }
 }
 

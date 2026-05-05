@@ -1,4 +1,9 @@
 from datetime import date, timedelta
+from types import SimpleNamespace
+
+import pytest
+
+from app.services.plans import current_planning_week_start
 
 
 def create_meal(client, csrf_token: str, title: str, tags: list[str], complexity: str = "intermediate"):
@@ -13,6 +18,16 @@ def create_meal(client, csrf_token: str, title: str, tags: list[str], complexity
     )
     assert response.status_code == 201
     return response.json()
+
+
+def test_current_planning_week_start_uses_user_timezone(monkeypatch: pytest.MonkeyPatch) -> None:
+    user = SimpleNamespace(timezone="America/Los_Angeles", week_starts_on=0)
+
+    monkeypatch.setattr("app.services.plans.current_local_date", lambda timezone_name: date(2026, 5, 3))
+    assert current_planning_week_start(user) == date(2026, 5, 4)
+
+    monkeypatch.setattr("app.services.plans.current_local_date", lambda timezone_name: date(2026, 5, 4))
+    assert current_planning_week_start(user) == date(2026, 5, 4)
 
 
 def test_meal_crud_and_tag_suggestions(authenticated_client: tuple) -> None:
@@ -76,8 +91,11 @@ def test_bulk_fast_add(authenticated_client: tuple) -> None:
     assert {meal["title"] for meal in payload} == {"Chili", "Tacos"}
 
 
-def test_plan_generation_and_mutations(authenticated_client: tuple) -> None:
+def test_plan_generation_and_mutations(authenticated_client: tuple, monkeypatch: pytest.MonkeyPatch) -> None:
     client, csrf_token = authenticated_client
+    monkeypatch.setattr("app.services.plans.current_planning_week_start", lambda user: date(2026, 5, 4))
+    monkeypatch.setattr("app.api.routes.plans.current_planning_week_start", lambda user: date(2026, 5, 4))
+
     taco = create_meal(client, csrf_token, "Taco Soup", ["soup", "tacos"], "simple")
     roast = create_meal(client, csrf_token, "Roast Chicken", ["cozy"], "intermediate")
     pasta = create_meal(client, csrf_token, "Pasta Primavera", ["quick"], "simple")
@@ -105,7 +123,7 @@ def test_plan_generation_and_mutations(authenticated_client: tuple) -> None:
     generated = client.post(
         "/api/plans/generate",
         headers={"X-CSRF-Token": csrf_token},
-        json={"week_start_date": str(date.today() - timedelta(days=date.today().weekday()))},
+        json={"week_start_date": "2026-05-04"},
     )
     assert generated.status_code == 200
     plan = generated.json()
@@ -173,16 +191,17 @@ def test_plan_generation_and_mutations(authenticated_client: tuple) -> None:
     assert len(fetched.json()["slots"]) == 7
 
     current = client.get("/api/plans/current")
-    assert current.status_code == 404
+    assert current.status_code == 200
+    assert current.json()["week_start_date"] == "2026-05-04"
 
     titles = {slot["title_snapshot"] for slot in fetched.json()["slots"]}
     assert {"Taco Soup", "Roast Chicken", "Pasta Primavera", "Takeout Night"}.intersection(titles)
 
-    next_week_start = date.today() - timedelta(days=date.today().weekday()) + timedelta(days=7)
+    next_week_start = date(2026, 5, 11)
     generated_next = client.post(
         "/api/plans/generate",
         headers={"X-CSRF-Token": csrf_token},
-        json={},
+        json={"week_start_date": str(next_week_start)},
     )
     assert generated_next.status_code == 200
     assert generated_next.json()["week_start_date"] == str(next_week_start)
@@ -191,9 +210,9 @@ def test_plan_generation_and_mutations(authenticated_client: tuple) -> None:
     assert history.status_code == 200
     assert [item["week_start_date"] for item in history.json()] == [
         str(next_week_start),
-        str(date.today() - timedelta(days=date.today().weekday())),
+        "2026-05-04",
     ]
 
     current = client.get("/api/plans/current")
     assert current.status_code == 200
-    assert current.json()["week_start_date"] == str(next_week_start)
+    assert current.json()["week_start_date"] == "2026-05-04"

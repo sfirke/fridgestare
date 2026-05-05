@@ -1,5 +1,6 @@
 from collections import Counter
 from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy.orm import Session, joinedload
 
@@ -14,6 +15,22 @@ SEASON_INDEX = {12: "winter", 1: "winter", 2: "winter", 3: "spring", 4: "spring"
 def compute_week_start(reference_date: date, week_starts_on: int) -> date:
     offset = (reference_date.weekday() - week_starts_on) % 7
     return reference_date - timedelta(days=offset)
+
+
+def current_local_date(timezone_name: str, now: datetime | None = None) -> date:
+    try:
+        timezone = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        timezone = ZoneInfo("UTC")
+
+    current_moment = now or datetime.now(tz=UTC)
+    if current_moment.tzinfo is None:
+        current_moment = current_moment.replace(tzinfo=UTC)
+    return current_moment.astimezone(timezone).date()
+
+
+def compute_planning_week_start(reference_date: date, week_starts_on: int) -> date:
+    return compute_week_start(reference_date + timedelta(days=1), week_starts_on)
 
 
 def compute_next_week_start(reference_date: date, week_starts_on: int) -> date:

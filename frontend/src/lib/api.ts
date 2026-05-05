@@ -19,6 +19,11 @@ type RequestOptions = {
   responseType?: 'json' | 'text';
 };
 
+type PreferencesUpdatePayload = Partial<UserPreferences> & {
+  timezone?: string;
+  week_starts_on?: number;
+};
+
 function readCookie(name: string): string | null {
   const cookie = document.cookie
     .split('; ')
@@ -81,7 +86,7 @@ export const api = {
   getMe() {
     return request<MeResponse>('/me');
   },
-  updatePreferences(payload: Partial<UserPreferences>) {
+  updatePreferences(payload: PreferencesUpdatePayload) {
     return request<UserPreferences>('/me/preferences', {
       method: 'PATCH',
       body: payload,
