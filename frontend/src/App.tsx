@@ -1240,6 +1240,17 @@ export function App() {
                         <div className="slot-footer">
                           <span className="slot-type-pill">{slotBadgeLabel(slot)}</span>
                           {slot.outcome_status ? <span className="outcome-pill">{slot.outcome_status}</span> : null}
+                          <button
+                            className="reroll-icon-button"
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void applyPlanUpdate(() => api.rerollSlot(plan.id, slot.id), 'Slot rerolled.');
+                            }}
+                            title="Reroll this day"
+                          >
+                            🎲
+                          </button>
                           {selectedSlotId === slot.id ? <span className="slot-focus-pill">Selected</span> : null}
                         </div>
                       </article>

@@ -368,6 +368,29 @@ li {
   border: 1px dashed var(--border-strong);
 }
 
+.reroll-icon-button {
+  background: transparent;
+  border: none;
+  padding: 0.35rem 0.5rem;
+  font-size: 1.2rem;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background-color 160ms ease, transform 160ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.reroll-icon-button:hover:not(:disabled) {
+  background: rgba(63, 91, 70, 0.08);
+  transform: scale(1.1);
+}
+
+.reroll-icon-button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
 .meal-list,
 .discovery-list,
 .rule-stack,
