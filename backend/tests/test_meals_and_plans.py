@@ -167,6 +167,64 @@ def test_score_meal_skips_none_effective_recurrence() -> None:
     assert reason == "Skipped because it is disabled for summer."
 
 
+def test_force_regenerate_can_change_meals_with_randomized_selection(
+    authenticated_client: tuple,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, csrf_token = authenticated_client
+    monkeypatch.setattr("app.services.plans.current_planning_week_start", lambda user: date(2026, 5, 4))
+    monkeypatch.setattr("app.api.routes.plans.current_planning_week_start", lambda user: date(2026, 5, 4))
+
+    preferences = client.patch(
+        "/api/me/preferences",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"takeout_frequency_per_week": 0, "leftovers_per_week": 0},
+    )
+    assert preferences.status_code == 200
+
+    for title in [
+        "Aloo Gobi",
+        "Baked Ziti",
+        "Coconut Curry",
+        "Dal Fry",
+        "Eggplant Pasta",
+        "Farro Bowls",
+        "Gnocchi Bake",
+        "Herby Beans",
+        "Israeli Couscous",
+    ]:
+        create_meal(client, csrf_token, title, ["dinner"], "simple")
+
+    chooser_calls = {"count": 0}
+
+    def choose_scored_meal_for_test(scored: list[tuple]) -> tuple:
+        ranked = sorted(scored, key=lambda item: item[1], reverse=True)
+        chooser_calls["count"] += 1
+        if chooser_calls["count"] <= 7:
+            return ranked[0]
+        return ranked[1] if len(ranked) > 1 else ranked[0]
+
+    monkeypatch.setattr("app.services.planner.choose_scored_meal", choose_scored_meal_for_test)
+
+    generated = client.post(
+        "/api/plans/generate",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"week_start_date": "2026-05-04"},
+    )
+    assert generated.status_code == 200
+    generated_titles = [slot["title_snapshot"] for slot in generated.json()["slots"] if slot["slot_type"] == "meal"]
+
+    regenerated = client.post(
+        "/api/plans/generate",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"week_start_date": "2026-05-04", "force_regenerate": True},
+    )
+    assert regenerated.status_code == 200
+    regenerated_titles = [slot["title_snapshot"] for slot in regenerated.json()["slots"] if slot["slot_type"] == "meal"]
+
+    assert generated_titles != regenerated_titles
+
+
 def test_plan_generation_and_mutations(authenticated_client: tuple, monkeypatch: pytest.MonkeyPatch) -> None:
     client, csrf_token = authenticated_client
     monkeypatch.setattr("app.services.plans.current_planning_week_start", lambda user: date(2026, 5, 4))
@@ -204,6 +262,7 @@ def test_plan_generation_and_mutations(authenticated_client: tuple, monkeypatch:
     assert generated.status_code == 200
     plan = generated.json()
     assert len(plan["slots"]) == 7
+    original_slot_ids = [slot["id"] for slot in plan["slots"]]
     assert any(slot["slot_type"] == "takeout" for slot in plan["slots"])
     leftovers = [slot for slot in plan["slots"] if slot["slot_type"] == "leftover"]
     assert len(leftovers) == 2
@@ -214,7 +273,18 @@ def test_plan_generation_and_mutations(authenticated_client: tuple, monkeypatch:
             for candidate in plan["slots"]
         )
 
-    slot_ids = [slot["id"] for slot in plan["slots"]]
+    regenerated = client.post(
+        "/api/plans/generate",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"week_start_date": "2026-05-04", "force_regenerate": True},
+    )
+    assert regenerated.status_code == 200
+    regenerated_plan = regenerated.json()
+    assert regenerated_plan["id"] == plan["id"]
+    assert len(regenerated_plan["slots"]) == 7
+    assert len({slot["slot_date"] for slot in regenerated_plan["slots"]}) == 7
+
+    slot_ids = [slot["id"] for slot in regenerated_plan["slots"]]
     set_slot = client.post(
         f"/api/plans/{plan['id']}/set-slot",
         headers={"X-CSRF-Token": csrf_token},

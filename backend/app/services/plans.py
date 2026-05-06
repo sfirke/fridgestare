@@ -110,6 +110,7 @@ def generate_week_plan(
     else:
         plan = existing
         plan.slots.clear()
+        session.flush()
         plan.generation_source = generation_source
         plan.planner_explanation = explanation
     for payload in slot_payloads:

@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App';
@@ -117,7 +117,7 @@ describe('App', () => {
     const plannerTab = await screen.findByRole('tab', { name: 'Planner Week view, chat, discovery, and email.' });
     expect(plannerTab.getAttribute('aria-selected')).toBe('true');
     expect(await screen.findByText('No weekly plan exists yet for this planning week.')).not.toBeNull();
-    expect(screen.getByRole('button', { name: 'Generate a plan' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Generate week' })).not.toBeNull();
     expect(screen.getByRole('tab', { name: 'Meals Library management and meal entry.' })).not.toBeNull();
     expect(screen.getByRole('tab', { name: 'Preferences Guidance, email settings, and recurring rules.' })).not.toBeNull();
     expect(screen.queryByText('Meal library')).toBeNull();
@@ -190,5 +190,224 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Newer saved week' }).getAttribute('disabled')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Older saved week' }).getAttribute('disabled')).toBeNull();
     expect(screen.getByText('Saved week 1 of 2.')).not.toBeNull();
+  });
+
+  it('shows planner actions only on the planner tab', async () => {
+    window.history.replaceState({}, '', '/plans/2026-05-12');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn()
+        .mockResolvedValueOnce(
+          jsonResponse({
+            me: {
+              user: { id: 1, email: 'sam@example.com', is_admin: true, created_at: '2026-05-03T00:00:00Z' },
+              preferences: {
+                novel_meal_ratio: 0.15,
+                takeout_frequency_per_week: 1,
+                leftovers_per_week: 0,
+                allow_simple: true,
+                allow_intermediate: true,
+                allow_complex: true,
+                planning_guidance_text: '',
+                dietary_notes: '',
+                email_enabled: false,
+                email_day_of_week: 6,
+                email_local_time: '09:00:00',
+                updated_at: '2026-05-03T00:00:00Z',
+              },
+              recurring_rules: [],
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({
+            user: { id: 1, email: 'sam@example.com', is_admin: true, created_at: '2026-05-03T00:00:00Z' },
+            preferences: {
+              novel_meal_ratio: 0.15,
+              takeout_frequency_per_week: 1,
+              leftovers_per_week: 0,
+              allow_simple: true,
+              allow_intermediate: true,
+              allow_complex: true,
+              planning_guidance_text: '',
+              dietary_notes: '',
+              email_enabled: false,
+              email_day_of_week: 6,
+              email_local_time: '09:00:00',
+              updated_at: '2026-05-03T00:00:00Z',
+            },
+            recurring_rules: [],
+          }),
+        )
+        .mockResolvedValueOnce(jsonResponse([]))
+        .mockResolvedValueOnce(jsonResponse([]))
+        .mockResolvedValueOnce(
+          jsonResponse([
+            { id: 2, week_start_date: '2026-05-12', status: 'draft', generation_source: 'manual' },
+            { id: 1, week_start_date: '2026-05-05', status: 'draft', generation_source: 'manual' },
+          ]),
+        )
+        .mockResolvedValueOnce(jsonResponse(makePlan('2026-05-12', 'Latest Saved Plan')))
+        .mockResolvedValueOnce(jsonResponse({ detail: 'Plan not found' }, 404)),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByText('Latest Saved Plan')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Regenerate week' })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Generate week' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Preferences Guidance, email settings, and recurring rules.' }));
+
+    expect(screen.queryByRole('button', { name: 'Generate week' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Regenerate week' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Log out' })).not.toBeNull();
+  });
+
+  it('regenerates an existing week from the planner toolbar', async () => {
+    window.history.replaceState({}, '', '/plans/2026-05-12');
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          me: {
+            user: { id: 1, email: 'sam@example.com', is_admin: true, created_at: '2026-05-03T00:00:00Z' },
+            preferences: {
+              novel_meal_ratio: 0.15,
+              takeout_frequency_per_week: 1,
+              leftovers_per_week: 0,
+              allow_simple: true,
+              allow_intermediate: true,
+              allow_complex: true,
+              planning_guidance_text: '',
+              dietary_notes: '',
+              email_enabled: false,
+              email_day_of_week: 6,
+              email_local_time: '09:00:00',
+              updated_at: '2026-05-03T00:00:00Z',
+            },
+            recurring_rules: [],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          user: { id: 1, email: 'sam@example.com', is_admin: true, created_at: '2026-05-03T00:00:00Z' },
+          preferences: {
+            novel_meal_ratio: 0.15,
+            takeout_frequency_per_week: 1,
+            leftovers_per_week: 0,
+            allow_simple: true,
+            allow_intermediate: true,
+            allow_complex: true,
+            planning_guidance_text: '',
+            dietary_notes: '',
+            email_enabled: false,
+            email_day_of_week: 6,
+            email_local_time: '09:00:00',
+            updated_at: '2026-05-03T00:00:00Z',
+          },
+          recurring_rules: [],
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(
+        jsonResponse([
+          { id: 2, week_start_date: '2026-05-12', status: 'draft', generation_source: 'manual' },
+          { id: 1, week_start_date: '2026-05-05', status: 'draft', generation_source: 'manual' },
+        ]),
+      )
+      .mockResolvedValueOnce(jsonResponse(makePlan('2026-05-12', 'Latest Saved Plan')))
+      .mockResolvedValueOnce(jsonResponse({ detail: 'Plan not found' }, 404))
+      .mockResolvedValueOnce(jsonResponse(makePlan('2026-05-12', 'Regenerated Plan')))
+      .mockResolvedValueOnce(
+        jsonResponse([
+          { id: 2, week_start_date: '2026-05-12', status: 'draft', generation_source: 'manual' },
+          { id: 1, week_start_date: '2026-05-05', status: 'draft', generation_source: 'manual' },
+        ]),
+      )
+      .mockResolvedValueOnce(jsonResponse({ detail: 'Plan not found' }, 404));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Regenerate week' }));
+
+    expect(await screen.findByText('Weekly plan regenerated.')).not.toBeNull();
+    expect(await screen.findByRole('heading', { name: 'Regenerated Plan' })).not.toBeNull();
+
+    const generateCall = fetchMock.mock.calls.find(([input]) => input === '/api/plans/generate');
+    expect(generateCall).toBeDefined();
+    expect(JSON.parse(String(generateCall?.[1]?.body))).toEqual({ week_start_date: '2026-05-12', force_regenerate: true });
+  });
+
+  it('generates a missing week from the empty state', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          me: {
+            user: { id: 1, email: 'sam@example.com', is_admin: true, created_at: '2026-05-03T00:00:00Z' },
+            preferences: {
+              novel_meal_ratio: 0.15,
+              takeout_frequency_per_week: 1,
+              leftovers_per_week: 0,
+              allow_simple: true,
+              allow_intermediate: true,
+              allow_complex: true,
+              planning_guidance_text: '',
+              dietary_notes: '',
+              email_enabled: false,
+              email_day_of_week: 6,
+              email_local_time: '09:00:00',
+              updated_at: '2026-05-03T00:00:00Z',
+            },
+            recurring_rules: [],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          user: { id: 1, email: 'sam@example.com', is_admin: true, created_at: '2026-05-03T00:00:00Z' },
+          preferences: {
+            novel_meal_ratio: 0.15,
+            takeout_frequency_per_week: 1,
+            leftovers_per_week: 0,
+            allow_simple: true,
+            allow_intermediate: true,
+            allow_complex: true,
+            planning_guidance_text: '',
+            dietary_notes: '',
+            email_enabled: false,
+            email_day_of_week: 6,
+            email_local_time: '09:00:00',
+            updated_at: '2026-05-03T00:00:00Z',
+          },
+          recurring_rules: [],
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(jsonResponse({ detail: 'No plan for the active planning week' }, 404))
+      .mockResolvedValueOnce(jsonResponse(makePlan('2026-05-12', 'Fresh Plan')))
+      .mockResolvedValueOnce(
+        jsonResponse([
+          { id: 2, week_start_date: '2026-05-12', status: 'draft', generation_source: 'manual' },
+        ]),
+      )
+      .mockResolvedValueOnce(jsonResponse({ detail: 'Plan not found' }, 404));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Generate week' }));
+
+    expect(await screen.findByText('Weekly plan generated.')).not.toBeNull();
+    expect(await screen.findByRole('heading', { name: 'Fresh Plan' })).not.toBeNull();
+
+    const generateCall = fetchMock.mock.calls.find(([input]) => input === '/api/plans/generate');
+    expect(generateCall).toBeDefined();
+    expect(JSON.parse(String(generateCall?.[1]?.body))).toEqual({ week_start_date: null, force_regenerate: false });
   });
 });

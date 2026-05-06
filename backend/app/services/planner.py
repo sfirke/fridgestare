@@ -1,5 +1,6 @@
 from collections import Counter
 from datetime import UTC, date, datetime, timedelta
+import random
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy.orm import Session, joinedload
@@ -159,6 +160,20 @@ def build_plan_explanation(slot_explanations: list[str], constraint_notes: list[
     return "\n".join(lines)
 
 
+def choose_scored_meal(scored: list[tuple[Meal, float, str]]) -> tuple[Meal, float, str]:
+    ranked = sorted(scored, key=lambda item: item[1], reverse=True)
+    if len(ranked) == 1:
+        return ranked[0]
+
+    selection_pool = [candidate for candidate in ranked if candidate[1] >= ranked[0][1] - 1.5]
+    if len(selection_pool) < min(3, len(ranked)):
+        selection_pool = ranked[: min(3, len(ranked))]
+
+    weight_floor = min(candidate[1] for candidate in selection_pool)
+    weights = [(candidate[1] - weight_floor) + 1.0 for candidate in selection_pool]
+    return random.choices(selection_pool, weights=weights, k=1)[0]
+
+
 def slot_can_be_reused(slot_payload: dict) -> bool:
     return slot_payload["slot_type"] == "meal" and slot_payload["meal_id"] is not None
 
@@ -295,8 +310,7 @@ def generate_slot_selection(
             "selection_reason": note,
         }, note
 
-    scored.sort(key=lambda item: item[1], reverse=True)
-    meal, _, reason = scored[0]
+    meal, _, reason = choose_scored_meal(scored)
     selected_meal_ids.add(meal.id)
     explanation = f"{slot_date:%A}: {meal.title} because it {reason}."
     return {

@@ -549,16 +549,17 @@ export function App() {
     }
   }
 
-  async function handleGeneratePlan(forceRegenerate = false) {
+  async function handleGeneratePlan() {
     resetMessages();
+    const shouldRegenerate = plan !== null;
     try {
-      const nextPlan = await api.generatePlan(viewedWeek ?? undefined, forceRegenerate);
+      const nextPlan = await api.generatePlan(viewedWeek ?? undefined, shouldRegenerate);
       const history = await api.listPlans();
       await syncPlanContext(nextPlan);
       setPlanHistory(history);
       setViewedWeek(nextPlan.week_start_date);
       syncBrowserWeekPath(nextPlan.week_start_date, 'replace');
-      setStatusMessage('Weekly plan generated.');
+      setStatusMessage(shouldRegenerate ? 'Weekly plan regenerated.' : 'Weekly plan generated.');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to generate plan.');
     }
@@ -731,6 +732,7 @@ export function App() {
 
     return Array.from(optionsByMealId.values());
   }, [plan, previousPlan, selectedSlot]);
+  const showPlannerRegenerateAction = activeView === 'planner' && plan !== null;
 
   if (authState === 'loading') {
     return (
@@ -794,8 +796,9 @@ export function App() {
           </p>
         </div>
         <div className="topbar-actions">
-          <button onClick={() => void handleGeneratePlan(false)}>Generate week</button>
-          <button className="secondary-button" onClick={() => void handleGeneratePlan(true)}>Regenerate</button>
+          {showPlannerRegenerateAction ? (
+            <button onClick={() => void handleGeneratePlan()}>Regenerate week</button>
+          ) : null}
           <button className="secondary-button" onClick={() => void handleLogout()}>Log out</button>
         </div>
       </header>
@@ -1246,7 +1249,7 @@ export function App() {
               ) : (
                 <div className="empty-state">
                   <p>No weekly plan exists yet for this planning week.</p>
-                  <button type="button" onClick={() => void handleGeneratePlan(false)}>Generate a plan</button>
+                  <button type="button" onClick={() => void handleGeneratePlan()}>Generate week</button>
                   {latestSavedPlan ? (
                     <button className="secondary-button" type="button" onClick={() => void handleOpenWeek(latestSavedPlan.week_start_date)}>
                       Open latest saved week
