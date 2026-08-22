@@ -21,7 +21,7 @@ def validate_timezone_name(timezone: str) -> str:
 
 
 def get_user_by_email(session: Session, email: str) -> User | None:
-    return session.query(User).filter(User.email.ilike(email.strip())).one_or_none()
+    return session.query(User).filter(User.email == email.strip().lower()).one_or_none()
 
 
 def ensure_preferences(session: Session, user: User) -> UserPreferences:

@@ -1,9 +1,9 @@
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import Date, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, TimestampMixin
+from app.models.base import Base, TimestampMixin, UtcDateTime, utcnow
 
 
 class WeeklyPlan(TimestampMixin, Base):
@@ -36,8 +36,8 @@ class DiscoveredRecipeCandidate(Base):
     reasoning: Mapped[str] = mapped_column(Text, default="", nullable=False)
     accepted_meal_id: Mapped[int | None] = mapped_column(ForeignKey("meals.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
+        UtcDateTime,
+        default=utcnow,
         nullable=False,
     )
 
@@ -61,6 +61,6 @@ class PlanSlot(Base):
     notes_snapshot: Mapped[str] = mapped_column(Text, default="", nullable=False)
     selection_reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
     outcome_status: Mapped[str | None] = mapped_column(String(20))
-    outcome_logged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    outcome_logged_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
 
     plan: Mapped[WeeklyPlan] = relationship(back_populates="slots")

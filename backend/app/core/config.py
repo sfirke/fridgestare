@@ -19,8 +19,7 @@ class Settings(BaseSettings):
 
     app_name: str = "Fridgestare"
     api_prefix: str = "/api"
-    database_url: str = "postgresql+psycopg://fridgestare:fridgestare@localhost:5432/fridgestare"
-    test_database_url: str = "postgresql+psycopg://fridgestare:fridgestare@localhost:5432/fridgestare_test"
+    database_url: str = "mysql+pymysql://fridgestare:fridgestare@localhost:3306/fridgestare?charset=utf8mb4"
     app_secret_key: str = "change-me-with-at-least-32-characters"
     app_base_url: AnyHttpUrl = "http://localhost:8000"
     access_token_expire_minutes: int = 60 * 24 * 7
