@@ -2,19 +2,27 @@ from datetime import UTC, datetime, timedelta
 from secrets import token_urlsafe
 
 import jwt
-from passlib.context import CryptContext
+from argon2 import PasswordHasher
+from argon2.exceptions import Argon2Error
 
 from app.core.config import get_settings
 
-pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+# argon2-cffi directly rather than passlib: passlib is unmaintained and imports the
+# stdlib `crypt` module, which Python 3.13 removed. The hash format is identical, so
+# credentials written by the previous passlib-backed build still verify.
+password_hasher = PasswordHasher()
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return password_hasher.hash(password)
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    return pwd_context.verify(password, password_hash)
+    try:
+        return password_hasher.verify(password_hash, password)
+    except (Argon2Error, ValueError):
+        # Wrong password, or a malformed/unknown hash: both are simply "not verified".
+        return False
 
 
 def create_access_token(user_id: int, expires_minutes: int | None = None) -> str:

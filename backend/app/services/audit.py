@@ -61,7 +61,7 @@ def create_activity_log(
 
 
 def get_latest_undoable_action(session: Session, user_id: int, plan_id: int) -> ActivityLog | None:
-    return (
+    action = (
         session.query(ActivityLog)
         .filter(
             ActivityLog.user_id == user_id,
@@ -70,4 +70,43 @@ def get_latest_undoable_action(session: Session, user_id: int, plan_id: int) -> 
         )
         .order_by(ActivityLog.created_at.desc(), ActivityLog.id.desc())
         .first()
+    )
+    # Rows written before undo_payload used none_as_null hold the JSON value `null`,
+    # which satisfies IS NOT NULL but reads back as None.
+    return action if action is not None and action.undo_payload is not None else None
+
+
+def plan_email_already_sent(session: Session, user_id: int, plan_id: int) -> bool:
+    """True once a plan email has been dispatched for this plan.
+
+    The scheduler polls far more often than it should send, so this is what keeps a
+    week's email to exactly one delivery.
+    """
+    return (
+        session.query(ActivityLog.id)
+        .filter(
+            ActivityLog.user_id == user_id,
+            ActivityLog.plan_id == plan_id,
+            ActivityLog.event_type == "send_email",
+        )
+        .first()
+        is not None
+    )
+
+
+def clear_undo_history(session: Session, user_id: int, plan_id: int) -> None:
+    """Drop pending undo snapshots for a plan.
+
+    Regenerating a week replaces every slot row, so snapshots captured against the old
+    rows no longer describe anything undoable; keeping them let "undo" splice a
+    pre-regeneration meal back into the new week.
+    """
+    (
+        session.query(ActivityLog)
+        .filter(
+            ActivityLog.user_id == user_id,
+            ActivityLog.plan_id == plan_id,
+            ActivityLog.undo_payload.isnot(None),
+        )
+        .update({ActivityLog.undo_payload: None}, synchronize_session=False)
     )

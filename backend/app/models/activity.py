@@ -16,5 +16,8 @@ class ActivityLog(Base):
     actor_type: Mapped[str] = mapped_column(String(30), nullable=False)
     actor_id: Mapped[int | None] = mapped_column(nullable=True)
     payload: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
-    undo_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # none_as_null: without it SQLAlchemy stores Python None as the JSON value `null`,
+    # which is not SQL NULL, so a consumed undo entry still matched `undo_payload IS NOT
+    # NULL` and came back as the next "undoable" action.
+    undo_payload: Mapped[dict | None] = mapped_column(JSON(none_as_null=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow, nullable=False)

@@ -13,6 +13,14 @@ from app.schemas.plan import SetSlotRequest
 from app.services.meals import create_meal
 from app.services.plans import set_slot_contents
 
+VALID_COMPLEXITIES = {"simple", "intermediate", "complex"}
+DEFAULT_COMPLEXITY = "intermediate"
+
+
+def normalize_complexity(value: str | None) -> str:
+    candidate = (value or "").strip().lower()
+    return candidate if candidate in VALID_COMPLEXITIES else DEFAULT_COMPLEXITY
+
 
 def candidate_to_schema(candidate: DiscoveredRecipeCandidate) -> dict:
     return {
@@ -84,7 +92,7 @@ def suggest_candidates(
             title=item["title"],
             summary=item["summary"],
             source_url=item["source_url"],
-            complexity=item.get("complexity", "intermediate"),
+            complexity=normalize_complexity(item.get("complexity")),
             reasoning=item.get("reasoning", "Matches your current preferences."),
             created_at=datetime.now(tz=UTC),
         )
@@ -121,7 +129,7 @@ def accept_candidate(
             MealCreate(
                 title=candidate.title,
                 notes=candidate.summary,
-                complexity=candidate.complexity,
+                complexity=normalize_complexity(candidate.complexity),
                 source_url=candidate.source_url,
                 source_note="Agent sourced discovery",
                 tags=[],

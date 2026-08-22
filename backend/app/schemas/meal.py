@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 SeasonName = Literal["winter", "spring", "summer", "fall"]
 RecurrenceTier = Literal["none", "treat", "regular", "staple"]
+MealComplexity = Literal["simple", "intermediate", "complex"]
 
 
 class MealSeasonalRecurrenceOverride(BaseModel):
@@ -24,7 +25,7 @@ def _validate_unique_seasons(
 class MealCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     notes: str = ""
-    complexity: str = "intermediate"
+    complexity: MealComplexity = "intermediate"
     recurrence_tier: RecurrenceTier = "regular"
     seasonal_recurrence_overrides: list[MealSeasonalRecurrenceOverride] = Field(
         default_factory=list
@@ -46,7 +47,7 @@ class BulkFastAddRequest(BaseModel):
 class MealUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
     notes: str | None = None
-    complexity: str | None = None
+    complexity: MealComplexity | None = None
     recurrence_tier: RecurrenceTier | None = None
     seasonal_recurrence_overrides: list[MealSeasonalRecurrenceOverride] | None = None
     dietary_exclusions: list[str] | None = None
@@ -72,7 +73,7 @@ class MealOut(BaseModel):
     title: str
     notes: str
     meal_type: str
-    complexity: str
+    complexity: MealComplexity
     recurrence_tier: RecurrenceTier
     seasonal_recurrence_overrides: list[MealSeasonalRecurrenceOverride]
     dietary_exclusions: list[str]

@@ -93,3 +93,21 @@ def test_email_preview_and_send(authenticated_client: tuple) -> None:
     )
     assert sent.status_code == 200
     assert sent.json()["status"] == "queued"
+
+
+def test_plan_email_links_to_the_spa_without_a_credential(authenticated_client: tuple) -> None:
+    """The plan link used to carry a week-long access token in the query string.
+
+    Emailed URLs land in mail providers, logs and referrer headers, and nothing on the
+    frontend ever consumed the token, so it was a credential leak with no purpose.
+    """
+    client, csrf_token = authenticated_client
+    plan = setup_plan(client, csrf_token)
+
+    preview = client.get(f"/api/plans/{plan['id']}/email-preview")
+    assert preview.status_code == 200
+    html = preview.json()["html"]
+
+    assert "token=" not in html
+    assert f'/plans/{plan["week_start_date"]}"' in html
+    assert "//plans/" not in html  # the base URL's trailing slash used to double up

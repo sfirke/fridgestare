@@ -13,6 +13,7 @@ from app.schemas.plan import (
     OutcomeStatusUpdate,
     PlanOut,
     PlanSlotOut,
+    PlanSummaryOut,
     RerollSlotRequest,
     SetSlotRequest,
 )
@@ -45,6 +46,7 @@ __all__ = [
     "OutcomeStatusUpdate",
     "PlanOut",
     "PlanSlotOut",
+    "PlanSummaryOut",
     "RecurringRuleIn",
     "RecurringRuleOut",
     "RerollSlotRequest",
