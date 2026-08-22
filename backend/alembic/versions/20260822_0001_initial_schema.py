@@ -8,9 +8,8 @@ Create Date: 2026-08-22 00:00:01
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import mysql
-
 from alembic import op
+from sqlalchemy.dialects import mysql
 
 revision: str = "20260822_0001"
 down_revision: str | None = None
@@ -39,9 +38,7 @@ def upgrade() -> None:
 
     op.create_table(
         "user_preferences",
-        sa.Column(
-            "user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
-        ),
+        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
         sa.Column("novel_meal_ratio", sa.Double(), nullable=False, server_default="0.15"),
         sa.Column("takeout_frequency_per_week", sa.Double(), nullable=False, server_default="1.0"),
         sa.Column("leftovers_per_week", sa.Integer(), nullable=False, server_default="0"),
@@ -59,9 +56,7 @@ def upgrade() -> None:
     op.create_table(
         "recurring_rules",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column(
-            "user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-        ),
+        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("day_of_week", sa.Integer(), nullable=False),
         sa.Column("rule_type", sa.String(length=50), nullable=False),
         sa.Column("rule_payload", sa.JSON(), nullable=False, server_default="{}"),
@@ -76,18 +71,12 @@ def upgrade() -> None:
     op.create_table(
         "meals",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column(
-            "user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-        ),
+        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("title", sa.String(length=255), nullable=False),
         sa.Column("notes", sa.Text(), nullable=False, server_default=""),
         sa.Column("meal_type", sa.String(length=30), nullable=False, server_default="dinner"),
-        sa.Column(
-            "complexity", sa.String(length=20), nullable=False, server_default="intermediate"
-        ),
-        sa.Column(
-            "recurrence_tier", sa.String(length=20), nullable=False, server_default="regular"
-        ),
+        sa.Column("complexity", sa.String(length=20), nullable=False, server_default="intermediate"),
+        sa.Column("recurrence_tier", sa.String(length=20), nullable=False, server_default="regular"),
         sa.Column("dietary_exclusions", sa.JSON(), nullable=False, server_default="[]"),
         sa.Column("source_note", sa.String(length=255), nullable=False, server_default=""),
         sa.Column("source_url", sa.String(length=500), nullable=False, server_default=""),
@@ -101,9 +90,7 @@ def upgrade() -> None:
     op.create_table(
         "meal_tags",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column(
-            "user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-        ),
+        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("name", sa.String(length=60), nullable=False),
         sa.Column("created_at", UTC_DATETIME, nullable=False),
         sa.Column("updated_at", UTC_DATETIME, nullable=False),
@@ -113,22 +100,13 @@ def upgrade() -> None:
 
     op.create_table(
         "meal_tag_links",
-        sa.Column(
-            "meal_id", sa.Integer(), sa.ForeignKey("meals.id", ondelete="CASCADE"), primary_key=True
-        ),
-        sa.Column(
-            "tag_id",
-            sa.Integer(),
-            sa.ForeignKey("meal_tags.id", ondelete="CASCADE"),
-            primary_key=True,
-        ),
+        sa.Column("meal_id", sa.Integer(), sa.ForeignKey("meals.id", ondelete="CASCADE"), primary_key=True),
+        sa.Column("tag_id", sa.Integer(), sa.ForeignKey("meal_tags.id", ondelete="CASCADE"), primary_key=True),
     )
 
     op.create_table(
         "meal_seasonal_recurrence_overrides",
-        sa.Column(
-            "meal_id", sa.Integer(), sa.ForeignKey("meals.id", ondelete="CASCADE"), primary_key=True
-        ),
+        sa.Column("meal_id", sa.Integer(), sa.ForeignKey("meals.id", ondelete="CASCADE"), primary_key=True),
         sa.Column("season", sa.String(length=20), primary_key=True),
         sa.Column("recurrence_tier", sa.String(length=20), nullable=False),
     )
@@ -136,14 +114,10 @@ def upgrade() -> None:
     op.create_table(
         "weekly_plans",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column(
-            "user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-        ),
+        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("week_start_date", sa.Date(), nullable=False),
         sa.Column("status", sa.String(length=30), nullable=False, server_default="draft"),
-        sa.Column(
-            "generation_source", sa.String(length=30), nullable=False, server_default="manual"
-        ),
+        sa.Column("generation_source", sa.String(length=30), nullable=False, server_default="manual"),
         sa.Column("planner_explanation", sa.Text(), nullable=False, server_default=""),
         sa.Column("created_at", UTC_DATETIME, nullable=False),
         sa.Column("updated_at", UTC_DATETIME, nullable=False),
@@ -154,22 +128,13 @@ def upgrade() -> None:
     op.create_table(
         "discovered_recipe_candidates",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column(
-            "user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-        ),
+        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("title", sa.String(length=255), nullable=False),
         sa.Column("summary", sa.Text(), nullable=False, server_default=""),
         sa.Column("source_url", sa.String(length=500), nullable=False),
-        sa.Column(
-            "complexity", sa.String(length=20), nullable=False, server_default="intermediate"
-        ),
+        sa.Column("complexity", sa.String(length=20), nullable=False, server_default="intermediate"),
         sa.Column("reasoning", sa.Text(), nullable=False, server_default=""),
-        sa.Column(
-            "accepted_meal_id",
-            sa.Integer(),
-            sa.ForeignKey("meals.id", ondelete="SET NULL"),
-            nullable=True,
-        ),
+        sa.Column("accepted_meal_id", sa.Integer(), sa.ForeignKey("meals.id", ondelete="SET NULL"), nullable=True),
         sa.Column("created_at", UTC_DATETIME, nullable=False),
     )
     op.create_index(
@@ -182,18 +147,11 @@ def upgrade() -> None:
     op.create_table(
         "plan_slots",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column(
-            "plan_id",
-            sa.Integer(),
-            sa.ForeignKey("weekly_plans.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
+        sa.Column("plan_id", sa.Integer(), sa.ForeignKey("weekly_plans.id", ondelete="CASCADE"), nullable=False),
         sa.Column("slot_date", sa.Date(), nullable=False),
         sa.Column("slot_order", sa.Integer(), nullable=False),
         sa.Column("slot_type", sa.String(length=30), nullable=False, server_default="meal"),
-        sa.Column(
-            "meal_id", sa.Integer(), sa.ForeignKey("meals.id", ondelete="SET NULL"), nullable=True
-        ),
+        sa.Column("meal_id", sa.Integer(), sa.ForeignKey("meals.id", ondelete="SET NULL"), nullable=True),
         sa.Column(
             "discovered_candidate_id",
             sa.Integer(),
@@ -212,15 +170,8 @@ def upgrade() -> None:
     op.create_table(
         "activity_log",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column(
-            "user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-        ),
-        sa.Column(
-            "plan_id",
-            sa.Integer(),
-            sa.ForeignKey("weekly_plans.id", ondelete="CASCADE"),
-            nullable=True,
-        ),
+        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("plan_id", sa.Integer(), sa.ForeignKey("weekly_plans.id", ondelete="CASCADE"), nullable=True),
         sa.Column("event_type", sa.String(length=50), nullable=False),
         sa.Column("actor_type", sa.String(length=30), nullable=False),
         sa.Column("actor_id", sa.Integer(), nullable=True),

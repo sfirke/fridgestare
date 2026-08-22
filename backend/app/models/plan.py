@@ -1,20 +1,14 @@
 from datetime import date, datetime
-from typing import TYPE_CHECKING
 
 from sqlalchemy import Date, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UtcDateTime, utcnow
 
-if TYPE_CHECKING:
-    from app.models.meal import Meal
-
 
 class WeeklyPlan(TimestampMixin, Base):
     __tablename__ = "weekly_plans"
-    __table_args__ = (
-        UniqueConstraint("user_id", "week_start_date", name="uq_weekly_plans_user_week"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "week_start_date", name="uq_weekly_plans_user_week"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
@@ -40,9 +34,7 @@ class DiscoveredRecipeCandidate(Base):
     source_url: Mapped[str] = mapped_column(String(500), nullable=False)
     complexity: Mapped[str] = mapped_column(String(20), default="intermediate", nullable=False)
     reasoning: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    accepted_meal_id: Mapped[int | None] = mapped_column(
-        ForeignKey("meals.id", ondelete="SET NULL")
-    )
+    accepted_meal_id: Mapped[int | None] = mapped_column(ForeignKey("meals.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(
         UtcDateTime,
         default=utcnow,
@@ -57,9 +49,7 @@ class PlanSlot(Base):
     __table_args__ = (UniqueConstraint("plan_id", "slot_date", name="uq_plan_slots_plan_date"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    plan_id: Mapped[int] = mapped_column(
-        ForeignKey("weekly_plans.id", ondelete="CASCADE"), index=True
-    )
+    plan_id: Mapped[int] = mapped_column(ForeignKey("weekly_plans.id", ondelete="CASCADE"), index=True)
     slot_date: Mapped[date] = mapped_column(Date, nullable=False)
     slot_order: Mapped[int] = mapped_column(nullable=False)
     slot_type: Mapped[str] = mapped_column(String(30), default="meal", nullable=False)

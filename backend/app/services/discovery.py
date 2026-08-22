@@ -9,9 +9,9 @@ from app.core.config import get_settings
 from app.models.plan import DiscoveredRecipeCandidate
 from app.models.user import User
 from app.schemas.meal import MealCreate
-from app.schemas.plan import SetSlotRequest
 from app.services.meals import create_meal
-from app.services.plans import set_slot_contents
+from app.services.plans import load_plan_for_user, set_slot_contents
+from app.schemas.plan import SetSlotRequest
 
 
 def candidate_to_schema(candidate: DiscoveredRecipeCandidate) -> dict:
@@ -27,11 +27,6 @@ def candidate_to_schema(candidate: DiscoveredRecipeCandidate) -> dict:
     }
 
 
-_FALLBACK_REASON = (
-    "Fallback discovery suggestion generated locally because no web provider is configured."
-)
-
-
 def fallback_candidates(user: User, query: str) -> list[dict]:
     guidance = user.preferences.planning_guidance_text if user.preferences else ""
     phrase = query.strip() or guidance.strip() or "weekday dinner"
@@ -42,14 +37,14 @@ def fallback_candidates(user: User, query: str) -> list[dict]:
             "summary": f"A discovered recipe suggestion shaped around {phrase}.",
             "source_url": f"https://www.seriouseats.com/search?q={base_query}",
             "complexity": "simple",
-            "reasoning": _FALLBACK_REASON,
+            "reasoning": "Fallback discovery suggestion generated locally because no web provider is configured.",
         },
         {
             "title": f"Sheet Pan {phrase.title()}",
             "summary": f"An easy weeknight option that fits {phrase}.",
             "source_url": f"https://www.bonappetit.com/search?q={base_query}",
             "complexity": "intermediate",
-            "reasoning": _FALLBACK_REASON,
+            "reasoning": "Fallback discovery suggestion generated locally because no web provider is configured.",
         },
     ]
 
@@ -68,9 +63,7 @@ def build_discovery_query(user: User, query: str | None) -> str:
     return "; ".join(parts)
 
 
-def suggest_candidates(
-    session: Session, user: User, query: str | None
-) -> list[DiscoveredRecipeCandidate]:
+def suggest_candidates(session: Session, user: User, query: str | None) -> list[DiscoveredRecipeCandidate]:
     settings = get_settings()
     built_query = build_discovery_query(user, query)
     adapter = TavilyAdapter(settings.tavily_api_key)
@@ -104,16 +97,11 @@ def accept_candidate(
 ):
     candidate = (
         session.query(DiscoveredRecipeCandidate)
-        .filter(
-            DiscoveredRecipeCandidate.user_id == user.id,
-            DiscoveredRecipeCandidate.id == candidate_id,
-        )
+        .filter(DiscoveredRecipeCandidate.user_id == user.id, DiscoveredRecipeCandidate.id == candidate_id)
         .one_or_none()
     )
     if candidate is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Discovery candidate not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Discovery candidate not found")
     if candidate.accepted_meal_id is None:
         meal = create_meal(
             session,

@@ -11,3 +11,5 @@ api_router.include_router(plans.router, prefix="/plans", tags=["plans"])
 api_router.include_router(tags.router, prefix="/tags", tags=["tags"])
 api_router.include_router(users.router, tags=["users"])
 api_router.include_router(health.router, tags=["health"])
+
+

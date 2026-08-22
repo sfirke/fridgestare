@@ -20,9 +20,7 @@ def login(
     response: Response,
     session: Session = Depends(get_db),
 ) -> LoginResponse:
-    enforce_rate_limit(
-        request, bucket="login", limit=8, window_seconds=60, identifier=payload.email.lower()
-    )
+    enforce_rate_limit(request, bucket="login", limit=8, window_seconds=60, identifier=payload.email.lower())
     settings = get_settings()
     user = authenticate_user(session, payload.email, payload.password)
     access_token = create_access_token(user.id)

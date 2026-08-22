@@ -1,4 +1,6 @@
-from sqlalchemy import JSON, Boolean, ForeignKey, String, Text, UniqueConstraint
+from typing import Any
+
+from sqlalchemy import Boolean, ForeignKey, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -45,12 +47,8 @@ class MealTag(TimestampMixin, Base):
 class MealTagLink(Base):
     __tablename__ = "meal_tag_links"
 
-    meal_id: Mapped[int] = mapped_column(
-        ForeignKey("meals.id", ondelete="CASCADE"), primary_key=True
-    )
-    tag_id: Mapped[int] = mapped_column(
-        ForeignKey("meal_tags.id", ondelete="CASCADE"), primary_key=True
-    )
+    meal_id: Mapped[int] = mapped_column(ForeignKey("meals.id", ondelete="CASCADE"), primary_key=True)
+    tag_id: Mapped[int] = mapped_column(ForeignKey("meal_tags.id", ondelete="CASCADE"), primary_key=True)
 
     meal: Mapped[Meal] = relationship(back_populates="tag_links")
     tag: Mapped[MealTag] = relationship()
@@ -59,9 +57,7 @@ class MealTagLink(Base):
 class MealSeasonalRecurrenceOverride(Base):
     __tablename__ = "meal_seasonal_recurrence_overrides"
 
-    meal_id: Mapped[int] = mapped_column(
-        ForeignKey("meals.id", ondelete="CASCADE"), primary_key=True
-    )
+    meal_id: Mapped[int] = mapped_column(ForeignKey("meals.id", ondelete="CASCADE"), primary_key=True)
     season: Mapped[str] = mapped_column(String(20), primary_key=True)
     recurrence_tier: Mapped[str] = mapped_column(String(20), nullable=False)
 

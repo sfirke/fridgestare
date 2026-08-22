@@ -2,6 +2,7 @@ import logging
 import re
 from datetime import UTC, datetime
 
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.clients.openrouter import OpenRouterAdapter
@@ -9,7 +10,7 @@ from app.core.config import get_settings
 from app.models.meal import Meal
 from app.models.user import User
 from app.schemas.plan import MoveSlotRequest, SetSlotRequest
-from app.services.audit import create_activity_log
+from app.services.audit import create_activity_log, serialize_slot
 from app.services.plans import (
     load_plan_for_user,
     move_slot_contents,
@@ -45,17 +46,13 @@ def find_meal_by_title(session: Session, user_id: int, phrase: str) -> Meal | No
     cleaned = phrase.strip().lower()
     return (
         session.query(Meal)
-        .filter(
-            Meal.user_id == user_id, Meal.is_archived.is_(False), Meal.title.ilike(f"%{cleaned}%")
-        )
+        .filter(Meal.user_id == user_id, Meal.is_archived.is_(False), Meal.title.ilike(f"%{cleaned}%"))
         .order_by(Meal.title.asc())
         .first()
     )
 
 
-def choose_meal_by_tag_or_complexity(
-    session: Session, user_id: int, tag: str | None = None, complexity: str | None = None
-) -> Meal | None:
+def choose_meal_by_tag_or_complexity(session: Session, user_id: int, tag: str | None = None, complexity: str | None = None) -> Meal | None:
     query = session.query(Meal).filter(Meal.user_id == user_id, Meal.is_archived.is_(False))
     if complexity:
         query = query.filter(Meal.complexity == complexity)
@@ -92,36 +89,21 @@ def normalize_complexity(value: str | None) -> str | None:
     return None
 
 
-# A sequence of independent "does this phrasing match?" checks, tried in priority order,
-# each returning as soon as it can safely apply an edit; that shape is inherently long.
-def apply_chat_message(  # pylint: disable=too-many-locals,too-many-return-statements
-    # pylint: disable=too-many-branches,too-many-statements
-    session: Session,
-    user: User,
-    plan_id: int,
-    message: str,
-) -> tuple[dict, str]:
+def apply_chat_message(session: Session, user: User, plan_id: int, message: str) -> tuple[dict, str]:
     plan = load_plan_for_user(session, user.id, plan_id)
     lowered = message.lower().strip()
     days = extract_days(lowered)
     logger.info("Processing planner chat edit for plan_id=%s message=%r", plan_id, message)
     llm_intent = parse_with_llm(plan_to_schema(plan), message)
     if llm_intent:
-        logger.info(
-            "OpenRouter returned planner chat intent for plan_id=%s: %s", plan_id, llm_intent
-        )
+        logger.info("OpenRouter returned planner chat intent for plan_id=%s: %s", plan_id, llm_intent)
         days = [llm_intent.get("source_day"), llm_intent.get("target_day")]
         days = [day for day in days if day]
         lowered = f"{llm_intent.get('action', '')} {message}".strip()
     else:
-        logger.info(
-            "No OpenRouter planner chat intent available for plan_id=%s; using heuristic parsing.",
-            plan_id,
-        )
+        logger.info("No OpenRouter planner chat intent available for plan_id=%s; using heuristic parsing.", plan_id)
 
-    requested_complexity = normalize_complexity(
-        llm_intent.get("complexity") if llm_intent else None
-    )
+    requested_complexity = normalize_complexity(llm_intent.get("complexity") if llm_intent else None)
     if requested_complexity is None:
         for candidate in ("complex", "intermediate", "simple"):
             if candidate in lowered:
@@ -150,9 +132,7 @@ def apply_chat_message(  # pylint: disable=too-many-locals,too-many-return-state
                 plan_id,
                 MoveSlotRequest(source_slot_id=source.id, target_slot_id=target.id),
             )
-            return plan_to_schema(
-                updated
-            ), f"Moved the {days[0].title()} meal onto {days[1].title()}."
+            return plan_to_schema(updated), f"Moved the {days[0].title()} meal onto {days[1].title()}."
 
     if "takeout" in lowered and days:
         slot = slot_for_day(plan, days[0])
@@ -194,14 +174,9 @@ def apply_chat_message(  # pylint: disable=too-many-locals,too-many-return-state
                 plan_id,
                 SetSlotRequest(slot_id=slot.id, meal_id=meal.id, slot_type="meal"),
             )
-            return plan_to_schema(
-                updated
-            ), f"Put a {requested_complexity} meal on {target_day.title()}: {meal.title}."
+            return plan_to_schema(updated), f"Put a {requested_complexity} meal on {target_day.title()}: {meal.title}."
 
-    tag_match = re.search(
-        r"(?:a|an) ([a-z\-]+) on (monday|tuesday|wednesday|thursday|friday|saturday|sunday)",
-        lowered,
-    )
+    tag_match = re.search(r"(?:a|an) ([a-z\-]+) on (monday|tuesday|wednesday|thursday|friday|saturday|sunday)", lowered)
     if tag_match:
         tag_name, day_name = tag_match.groups()
         slot = slot_for_day(plan, day_name)
@@ -215,9 +190,7 @@ def apply_chat_message(  # pylint: disable=too-many-locals,too-many-return-state
             )
             return plan_to_schema(updated), f"Put {meal.title} on {day_name.title()}."
 
-    title_match = re.search(
-        r"put (.+) on (monday|tuesday|wednesday|thursday|friday|saturday|sunday)", lowered
-    )
+    title_match = re.search(r"put (.+) on (monday|tuesday|wednesday|thursday|friday|saturday|sunday)", lowered)
     if title_match:
         meal_phrase, day_name = title_match.groups()
         slot = slot_for_day(plan, day_name)
@@ -240,7 +213,5 @@ def apply_chat_message(  # pylint: disable=too-many-locals,too-many-return-state
         actor_type="llm",
     )
     session.commit()
-    logger.info(
-        "Planner chat edit produced no safe action for plan_id=%s message=%r", plan_id, message
-    )
+    logger.info("Planner chat edit produced no safe action for plan_id=%s message=%r", plan_id, message)
     return plan_to_schema(plan), "I couldn't translate that request into a safe plan edit."

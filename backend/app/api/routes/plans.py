@@ -1,12 +1,11 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_csrf
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.email import EmailPreviewOut, SendEmailResponse
 from app.schemas.plan import (
     GeneratePlanRequest,
     MoveSlotRequest,
@@ -16,6 +15,7 @@ from app.schemas.plan import (
     RerollSlotRequest,
     SetSlotRequest,
 )
+from app.schemas.email import EmailPreviewOut, SendEmailResponse
 from app.services.email import preview_plan_email, send_plan_email
 from app.services.plans import (
     current_planning_week_start,
@@ -23,6 +23,7 @@ from app.services.plans import (
     generate_week_plan,
     list_plan_summaries,
     load_plan_by_week,
+    load_plan_for_user,
     move_slot_contents,
     plan_to_schema,
     reroll_slot,
@@ -49,9 +50,7 @@ def get_current_plan(
 ) -> PlanOut:
     plan = current_week_plan(session, current_user)
     if plan is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="No plan for the active planning week"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No plan for the active planning week")
     return PlanOut(**plan_to_schema(plan))
 
 
@@ -137,9 +136,7 @@ def post_outcome_status(
     current_user: User = Depends(get_current_user),
 ) -> PlanOut:
     return PlanOut(
-        **plan_to_schema(
-            update_outcome_status(session, current_user, plan_id, slot_id, payload.outcome_status)
-        )
+        **plan_to_schema(update_outcome_status(session, current_user, plan_id, slot_id, payload.outcome_status))
     )
 
 

@@ -42,9 +42,7 @@ class OpenRouterAdapter(ProviderAdapter):
             logger.info("Skipping OpenRouter chat intent parse because no API key is configured.")
             return None
         try:
-            logger.info(
-                "Submitting OpenRouter chat intent parse request with model=%s.", self.model
-            )
+            logger.info("Submitting OpenRouter chat intent parse request with model=%s.", self.model)
             payload = {
                 "model": self.model,
                 "messages": [
@@ -57,8 +55,7 @@ class OpenRouterAdapter(ProviderAdapter):
             response = self._post_chat_completion(payload)
             if self._json_object_unsupported(response):
                 logger.warning(
-                    "OpenRouter model=%s rejected json_object response_format; "
-                    "retrying chat intent parse without structured output.",
+                    "OpenRouter model=%s rejected json_object response_format; retrying chat intent parse without structured output.",
                     self.model,
                 )
                 payload.pop("response_format", None)
@@ -68,26 +65,16 @@ class OpenRouterAdapter(ProviderAdapter):
             parsed = json.loads(content)
             if isinstance(parsed, list):
                 if len(parsed) == 1 and isinstance(parsed[0], dict):
-                    logger.warning(
-                        "OpenRouter chat intent parse returned a one-item list; "
-                        "using the first object."
-                    )
+                    logger.warning("OpenRouter chat intent parse returned a one-item list; using the first object.")
                     parsed = parsed[0]
                 else:
-                    logger.warning(
-                        "OpenRouter chat intent parse returned %s; expected an object.",
-                        type(parsed).__name__,
-                    )
+                    logger.warning("OpenRouter chat intent parse returned %s; expected an object.", type(parsed).__name__)
                     return None
             if not isinstance(parsed, dict):
-                logger.warning(
-                    "OpenRouter chat intent parse returned %s; expected an object.",
-                    type(parsed).__name__,
-                )
+                logger.warning("OpenRouter chat intent parse returned %s; expected an object.", type(parsed).__name__)
                 return None
             logger.info("OpenRouter chat intent parse succeeded.")
             return parsed
-        except Exception:  # pylint: disable=broad-exception-caught
-            # Best-effort parse: any failure (network, HTTP status, bad JSON) degrades to None.
+        except Exception:
             logger.exception("OpenRouter chat intent parse failed.")
             return None

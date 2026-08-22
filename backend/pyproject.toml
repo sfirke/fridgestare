@@ -46,21 +46,6 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "N", "ASYNC", "RUF"]
 
-[tool.ruff.lint.flake8-bugbear]
-# FastAPI's dependency-injection idiom relies on calling Depends() (and friends)
-# in argument defaults; it's not a mutable-default footgun.
-extend-immutable-calls = [
-  "fastapi.Depends",
-  "fastapi.Query",
-  "fastapi.Path",
-  "fastapi.Body",
-  "fastapi.Header",
-  "fastapi.Cookie",
-  "fastapi.Form",
-  "fastapi.File",
-  "fastapi.Security",
-]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
@@ -76,5 +61,4 @@ disable = [
   "too-few-public-methods",
   "duplicate-code",
   "too-many-arguments",
-  "too-many-positional-arguments",
 ]

@@ -1,10 +1,10 @@
 from logging.config import fileConfig
 
+from alembic import context
 from sqlalchemy import engine_from_config, pool
 from sqlalchemy import types as sa_types
 from sqlalchemy.dialects.mysql import LONGTEXT
 
-from alembic import context
 from app.core.config import get_settings
 from app.db.base import Base
 
@@ -25,9 +25,7 @@ def compare_type(_context, _inspected_column, _metadata_column, inspected_type, 
     reflected JSON column comes back as text and cannot be distinguished from one.
     Returning None for everything else defers to Alembic's default comparison.
     """
-    if isinstance(metadata_type, sa_types.JSON) and isinstance(
-        inspected_type, LONGTEXT | sa_types.Text
-    ):
+    if isinstance(metadata_type, sa_types.JSON) and isinstance(inspected_type, LONGTEXT | sa_types.Text):
         return False
     return None
 

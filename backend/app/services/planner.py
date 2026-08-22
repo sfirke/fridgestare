@@ -1,5 +1,6 @@
-import random
+from collections import Counter
 from datetime import UTC, date, datetime, timedelta
+import random
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy.orm import Session, joinedload
@@ -9,20 +10,7 @@ from app.models.plan import PlanSlot, WeeklyPlan
 from app.models.user import RecurringRule, User, UserPreferences
 
 RECURRENCE_WEIGHTS = {"staple": 3.0, "regular": 2.0, "treat": 1.0}
-SEASON_INDEX = {
-    12: "winter",
-    1: "winter",
-    2: "winter",
-    3: "spring",
-    4: "spring",
-    5: "spring",
-    6: "summer",
-    7: "summer",
-    8: "summer",
-    9: "fall",
-    10: "fall",
-    11: "fall",
-}
+SEASON_INDEX = {12: "winter", 1: "winter", 2: "winter", 3: "spring", 4: "spring", 5: "spring", 6: "summer", 7: "summer", 8: "summer", 9: "fall", 10: "fall", 11: "fall"}
 
 
 def compute_week_start(reference_date: date, week_starts_on: int) -> date:
@@ -106,15 +94,14 @@ def meal_tags(meal: Meal) -> set[str]:
 def effective_recurrence_tier(meal: Meal, slot_date: date) -> tuple[str, str, bool]:
     season = SEASON_INDEX[slot_date.month]
     override_map = {
-        override.season: override.recurrence_tier for override in meal.seasonal_recurrence_overrides
+        override.season: override.recurrence_tier
+        for override in meal.seasonal_recurrence_overrides
     }
     effective = override_map.get(season, meal.recurrence_tier)
     return effective, season, season in override_map
 
 
-# Each branch below applies one independent scoring rule; splitting them apart would
-# obscure the rubric rather than clarify it.
-def score_meal(  # pylint: disable=too-many-branches
+def score_meal(
     meal: Meal,
     slot_date: date,
     rule_info: dict,
@@ -193,15 +180,13 @@ def slot_can_be_reused(slot_payload: dict) -> bool:
 
 def slot_explanation(slot_payload: dict) -> str:
     slot_date = slot_payload["slot_date"]
-    title = slot_payload["title_snapshot"]
-    reason = slot_payload["selection_reason"]
     if slot_payload["slot_type"] == "takeout":
-        return f"{slot_date:%A}: Takeout Night because {reason}"
+        return f"{slot_date:%A}: Takeout Night because {slot_payload['selection_reason']}"
     if slot_payload["slot_type"] == "leftover":
-        return f"{slot_date:%A}: Leftovers ({title}) because {reason}"
+        return f"{slot_date:%A}: Leftovers ({slot_payload['title_snapshot']}) because {slot_payload['selection_reason']}"
     if slot_payload["slot_type"] == "empty":
-        return f"{slot_date:%A}: Unplanned because {reason}"
-    return f"{slot_date:%A}: {title} because {reason}"
+        return f"{slot_date:%A}: Unplanned because {slot_payload['selection_reason']}"
+    return f"{slot_date:%A}: {slot_payload['title_snapshot']} because {slot_payload['selection_reason']}"
 
 
 def previous_week_leftover_sources(history: list[PlanSlot], week_start_date: date) -> list[dict]:
@@ -246,8 +231,7 @@ def apply_leftover_preferences(
             (
                 candidate_index
                 for candidate_index in range(target_index - 1, -1, -1)
-                if slot_can_be_reused(slot_payloads[candidate_index])
-                and candidate_index not in reserved_source_indices
+                if slot_can_be_reused(slot_payloads[candidate_index]) and candidate_index not in reserved_source_indices
             ),
             None,
         )
@@ -261,10 +245,7 @@ def apply_leftover_preferences(
                     "discovered_candidate_id": None,
                     "title_snapshot": source_slot["title_snapshot"],
                     "notes_snapshot": source_slot["notes_snapshot"],
-                    "selection_reason": (
-                        f"Saved for leftovers from {source_slot['slot_date']:%A}'s "
-                        f"{source_slot['title_snapshot']}."
-                    ),
+                    "selection_reason": f"Saved for leftovers from {source_slot['slot_date']:%A}'s {source_slot['title_snapshot']}.",
                 }
             )
             leftovers_selected += 1
@@ -280,17 +261,14 @@ def apply_leftover_preferences(
                     "discovered_candidate_id": None,
                     "title_snapshot": source_slot["title_snapshot"],
                     "notes_snapshot": source_slot["notes_snapshot"],
-                    "selection_reason": (
-                        f"Saved for leftovers from last week's {source_slot['title_snapshot']}."
-                    ),
+                    "selection_reason": f"Saved for leftovers from last week's {source_slot['title_snapshot']}.",
                 }
             )
             leftovers_selected += 1
 
     if leftovers_selected < leftovers_target:
         notes.append(
-            "Leftover preference could not be fully satisfied because there were not "
-            "enough earlier meals to reuse."
+            "Leftover preference could not be fully satisfied because there were not enough earlier meals to reuse."
         )
     return notes
 
@@ -317,9 +295,7 @@ def generate_slot_selection(
 
     scored: list[tuple[Meal, float, str]] = []
     for meal in meals:
-        score, reason = score_meal(
-            meal, slot_date, rule_info, preferences, history, selected_meal_ids
-        )
+        score, reason = score_meal(meal, slot_date, rule_info, preferences, history, selected_meal_ids)
         if score > -500:
             scored.append((meal, score, reason))
 
@@ -347,20 +323,13 @@ def generate_slot_selection(
     }, explanation
 
 
-# Orchestrates the plan-generation pipeline (query meals, fill slots, backfill takeout,
-# apply leftovers, explain); the local variables are each pipeline stage's output.
-def generate_plan_payload(  # pylint: disable=too-many-locals
-    session: Session, user: User, week_start_date: date
-) -> tuple[list[dict], str]:
+def generate_plan_payload(session: Session, user: User, week_start_date: date) -> tuple[list[dict], str]:
     preferences = user.preferences
     if preferences is None:
         raise ValueError("User preferences must exist before planning.")
     meals = (
         session.query(Meal)
-        .options(
-            joinedload(Meal.tag_links).joinedload(MealTagLink.tag),
-            joinedload(Meal.seasonal_recurrence_overrides),
-        )
+        .options(joinedload(Meal.tag_links).joinedload(MealTagLink.tag), joinedload(Meal.seasonal_recurrence_overrides))
         .filter(Meal.user_id == user.id, Meal.is_archived.is_(False))
         .order_by(Meal.title.asc())
         .all()
@@ -405,15 +374,10 @@ def generate_plan_payload(  # pylint: disable=too-many-locals
                 )
                 remaining -= 1
         if remaining:
-            constraint_notes.append(
-                "Takeout preference could not be fully satisfied because several "
-                "slots were already constrained."
-            )
+            constraint_notes.append("Takeout preference could not be fully satisfied because several slots were already constrained.")
 
     constraint_notes.extend(
-        apply_leftover_preferences(
-            slot_payloads, history, week_start_date, preferences.leftovers_per_week
-        )
+        apply_leftover_preferences(slot_payloads, history, week_start_date, preferences.leftovers_per_week)
     )
 
     slot_explanations = [slot_explanation(slot_payload) for slot_payload in slot_payloads]

@@ -17,10 +17,7 @@ if url.get_backend_name() in ("mysql", "mariadb"):
     engine_kwargs["isolation_level"] = "READ COMMITTED"
 
 engine = create_engine(url, **engine_kwargs)
-# Conventional SQLAlchemy/FastAPI name for a session factory, not a constant.
-SessionLocal = sessionmaker(  # pylint: disable=invalid-name
-    bind=engine, autocommit=False, autoflush=False, future=True
-)
+SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, future=True)
 
 
 def get_db() -> Generator[Session, None, None]:
