@@ -8,7 +8,7 @@ Fridgestare is a meal-planning application for weekly dinner planning. It combin
 
 - Backend: FastAPI, SQLAlchemy 2.x, Alembic, APScheduler, pytest
 - Frontend: React 19, TypeScript, Vite, Vitest
-- Database: PostgreSQL in Docker Compose, SQLite for fast local smoke tests
+- Database: MariaDB in Docker Compose, SQLite for fast local smoke tests
 - Integrations: OpenRouter, Tavily, Mailgun with graceful local fallback when API keys are absent
 
 ## Features
@@ -63,8 +63,7 @@ If you want the database in Docker but the backend and frontend on the host, kee
 
 ```bash
 cat <<'EOF' > .env.local
-DATABASE_URL=postgresql+psycopg://fridgestare:fridgestare@localhost:5432/fridgestare
-TEST_DATABASE_URL=postgresql+psycopg://fridgestare:fridgestare@localhost:5432/fridgestare_test
+DATABASE_URL=mysql+pymysql://fridgestare:fridgestare@localhost:3306/fridgestare?charset=utf8mb4
 EOF
 
 docker compose up db
@@ -74,7 +73,7 @@ cd backend && .venv/bin/python -m uvicorn app.main:app --reload
 cd frontend && npm run dev
 ```
 
-`.env.local` is loaded after `.env`, so the host-local database URLs override the Compose-only `db` hostname.
+`.env.local` is loaded after `.env`, so the host-local database URL overrides the Compose-only `db` hostname.
 
 ## Useful Commands
 
@@ -122,5 +121,6 @@ cd frontend && npm run build
 ## Notes
 
 - The scheduler is optional and safe to leave disabled for local development.
+- MariaDB DDL is non-transactional, so a failed `alembic upgrade` leaves partially applied DDL with `alembic_version` unchanged. For local development, recover with `docker compose down -v` and re-run.
 - Discovery and email endpoints remain usable without third-party keys; they fall back to local mock behavior.
 - Weekly planner links generated in email target `/plans/{week_start}` in the SPA.

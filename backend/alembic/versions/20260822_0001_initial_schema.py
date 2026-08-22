@@ -1,19 +1,24 @@
 """initial schema
 
-Revision ID: 20260503_0001
+Revision ID: 20260822_0001
 Revises:
-Create Date: 2026-05-03 00:00:01
+Create Date: 2026-08-22 00:00:01
 """
 
 from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import mysql
 
-revision: str = "20260503_0001"
+revision: str = "20260822_0001"
 down_revision: str | None = None
 branch_labels: Sequence[str] | None = None
 depends_on: Sequence[str] | None = None
+
+# Mirrors app.models.base.UtcDateTime. Spelled out here so the migration stays a
+# self-contained snapshot rather than tracking the ORM as it evolves.
+UTC_DATETIME = sa.DateTime(timezone=True).with_variant(mysql.DATETIME(fsp=6), "mysql", "mariadb")
 
 
 def upgrade() -> None:
@@ -26,16 +31,17 @@ def upgrade() -> None:
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column("timezone", sa.String(length=64), nullable=False, server_default="UTC"),
         sa.Column("week_starts_on", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("created_at", UTC_DATETIME, nullable=False),
+        sa.Column("updated_at", UTC_DATETIME, nullable=False),
     )
     op.create_index("ix_users_email", "users", ["email"], unique=True)
 
     op.create_table(
         "user_preferences",
         sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
-        sa.Column("novel_meal_ratio", sa.Float(), nullable=False, server_default="0.15"),
-        sa.Column("takeout_frequency_per_week", sa.Float(), nullable=False, server_default="1.0"),
+        sa.Column("novel_meal_ratio", sa.Double(), nullable=False, server_default="0.15"),
+        sa.Column("takeout_frequency_per_week", sa.Double(), nullable=False, server_default="1.0"),
+        sa.Column("leftovers_per_week", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("allow_simple", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column("allow_intermediate", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column("allow_complex", sa.Boolean(), nullable=False, server_default=sa.true()),
@@ -44,7 +50,7 @@ def upgrade() -> None:
         sa.Column("email_enabled", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("email_day_of_week", sa.Integer(), nullable=False, server_default="6"),
         sa.Column("email_local_time", sa.Time(), nullable=False, server_default="09:00:00"),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("updated_at", UTC_DATETIME, nullable=False),
     )
 
     op.create_table(
@@ -56,8 +62,8 @@ def upgrade() -> None:
         sa.Column("rule_payload", sa.JSON(), nullable=False, server_default="{}"),
         sa.Column("priority", sa.Integer(), nullable=False, server_default="100"),
         sa.Column("active", sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("created_at", UTC_DATETIME, nullable=False),
+        sa.Column("updated_at", UTC_DATETIME, nullable=False),
         sa.UniqueConstraint("user_id", "id", name="uq_recurring_rule_user_id_id"),
     )
     op.create_index("ix_recurring_rules_user_id", "recurring_rules", ["user_id"], unique=False)
@@ -71,14 +77,13 @@ def upgrade() -> None:
         sa.Column("meal_type", sa.String(length=30), nullable=False, server_default="dinner"),
         sa.Column("complexity", sa.String(length=20), nullable=False, server_default="intermediate"),
         sa.Column("recurrence_tier", sa.String(length=20), nullable=False, server_default="regular"),
-        sa.Column("seasonality_mode", sa.String(length=20), nullable=False, server_default="balanced"),
         sa.Column("dietary_exclusions", sa.JSON(), nullable=False, server_default="[]"),
         sa.Column("source_note", sa.String(length=255), nullable=False, server_default=""),
         sa.Column("source_url", sa.String(length=500), nullable=False, server_default=""),
         sa.Column("agent_sourced", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("is_archived", sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("created_at", UTC_DATETIME, nullable=False),
+        sa.Column("updated_at", UTC_DATETIME, nullable=False),
     )
     op.create_index("ix_meals_user_id", "meals", ["user_id"], unique=False)
 
@@ -87,8 +92,8 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("name", sa.String(length=60), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("created_at", UTC_DATETIME, nullable=False),
+        sa.Column("updated_at", UTC_DATETIME, nullable=False),
         sa.UniqueConstraint("user_id", "name", name="uq_meal_tags_user_id_name"),
     )
     op.create_index("ix_meal_tags_user_id", "meal_tags", ["user_id"], unique=False)
@@ -100,10 +105,10 @@ def upgrade() -> None:
     )
 
     op.create_table(
-        "meal_season_preferences",
+        "meal_seasonal_recurrence_overrides",
         sa.Column("meal_id", sa.Integer(), sa.ForeignKey("meals.id", ondelete="CASCADE"), primary_key=True),
         sa.Column("season", sa.String(length=20), primary_key=True),
-        sa.Column("weight", sa.Float(), nullable=False, server_default="1.0"),
+        sa.Column("recurrence_tier", sa.String(length=20), nullable=False),
     )
 
     op.create_table(
@@ -114,8 +119,8 @@ def upgrade() -> None:
         sa.Column("status", sa.String(length=30), nullable=False, server_default="draft"),
         sa.Column("generation_source", sa.String(length=30), nullable=False, server_default="manual"),
         sa.Column("planner_explanation", sa.Text(), nullable=False, server_default=""),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("created_at", UTC_DATETIME, nullable=False),
+        sa.Column("updated_at", UTC_DATETIME, nullable=False),
         sa.UniqueConstraint("user_id", "week_start_date", name="uq_weekly_plans_user_week"),
     )
     op.create_index("ix_weekly_plans_user_id", "weekly_plans", ["user_id"], unique=False)
@@ -130,7 +135,7 @@ def upgrade() -> None:
         sa.Column("complexity", sa.String(length=20), nullable=False, server_default="intermediate"),
         sa.Column("reasoning", sa.Text(), nullable=False, server_default=""),
         sa.Column("accepted_meal_id", sa.Integer(), sa.ForeignKey("meals.id", ondelete="SET NULL"), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("created_at", UTC_DATETIME, nullable=False),
     )
     op.create_index(
         "ix_discovered_recipe_candidates_user_id",
@@ -157,7 +162,7 @@ def upgrade() -> None:
         sa.Column("notes_snapshot", sa.Text(), nullable=False, server_default=""),
         sa.Column("selection_reason", sa.Text(), nullable=False, server_default=""),
         sa.Column("outcome_status", sa.String(length=20), nullable=True),
-        sa.Column("outcome_logged_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("outcome_logged_at", UTC_DATETIME, nullable=True),
         sa.UniqueConstraint("plan_id", "slot_date", name="uq_plan_slots_plan_date"),
     )
     op.create_index("ix_plan_slots_plan_id", "plan_slots", ["plan_id"], unique=False)
@@ -172,28 +177,23 @@ def upgrade() -> None:
         sa.Column("actor_id", sa.Integer(), nullable=True),
         sa.Column("payload", sa.JSON(), nullable=False, server_default="{}"),
         sa.Column("undo_payload", sa.JSON(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("created_at", UTC_DATETIME, nullable=False),
     )
     op.create_index("ix_activity_log_user_id", "activity_log", ["user_id"], unique=False)
 
 
 def downgrade() -> None:
-    op.drop_index("ix_activity_log_user_id", table_name="activity_log")
+    # Tables are dropped in reverse foreign-key order; their indexes go with them.
+    # Dropping an index first fails on MariaDB when it is the only one backing a
+    # foreign key (errno 1553).
     op.drop_table("activity_log")
-    op.drop_index("ix_plan_slots_plan_id", table_name="plan_slots")
     op.drop_table("plan_slots")
-    op.drop_index("ix_discovered_recipe_candidates_user_id", table_name="discovered_recipe_candidates")
     op.drop_table("discovered_recipe_candidates")
-    op.drop_index("ix_weekly_plans_user_id", table_name="weekly_plans")
     op.drop_table("weekly_plans")
-    op.drop_table("meal_season_preferences")
+    op.drop_table("meal_seasonal_recurrence_overrides")
     op.drop_table("meal_tag_links")
-    op.drop_index("ix_meal_tags_user_id", table_name="meal_tags")
     op.drop_table("meal_tags")
-    op.drop_index("ix_meals_user_id", table_name="meals")
     op.drop_table("meals")
-    op.drop_index("ix_recurring_rules_user_id", table_name="recurring_rules")
     op.drop_table("recurring_rules")
     op.drop_table("user_preferences")
-    op.drop_index("ix_users_email", table_name="users")
     op.drop_table("users")

@@ -6,7 +6,7 @@ from app.models.user import User
 
 
 def authenticate_user(session: Session, email: str, password: str) -> User:
-    user = session.query(User).filter(User.email.ilike(email)).one_or_none()
+    user = session.query(User).filter(User.email == email.strip().lower()).one_or_none()
     if user is None or not verify_password(password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if not user.is_active:

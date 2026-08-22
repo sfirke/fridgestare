@@ -1,10 +1,10 @@
 from datetime import datetime, time
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, Double, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, TimestampMixin
+from app.models.base import Base, TimestampMixin, UtcDateTime, utcnow
 
 
 class User(TimestampMixin, Base):
@@ -33,8 +33,8 @@ class UserPreferences(Base):
     __tablename__ = "user_preferences"
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    novel_meal_ratio: Mapped[float] = mapped_column(default=0.15, nullable=False)
-    takeout_frequency_per_week: Mapped[float] = mapped_column(default=1.0, nullable=False)
+    novel_meal_ratio: Mapped[float] = mapped_column(Double, default=0.15, nullable=False)
+    takeout_frequency_per_week: Mapped[float] = mapped_column(Double, default=1.0, nullable=False)
     leftovers_per_week: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     allow_simple: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     allow_intermediate: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -45,9 +45,9 @@ class UserPreferences(Base):
     email_day_of_week: Mapped[int] = mapped_column(Integer, default=6, nullable=False)
     email_local_time: Mapped[time] = mapped_column(default=time(hour=9), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
+        UtcDateTime,
+        default=utcnow,
+        onupdate=utcnow,
         nullable=False,
     )
 

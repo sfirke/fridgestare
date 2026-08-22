@@ -1,7 +1,9 @@
-from sqlalchemy import DateTime, ForeignKey, JSON, String, func
+from datetime import datetime
+
+from sqlalchemy import ForeignKey, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base
+from app.models.base import Base, UtcDateTime, utcnow
 
 
 class ActivityLog(Base):
@@ -15,4 +17,4 @@ class ActivityLog(Base):
     actor_id: Mapped[int | None] = mapped_column(nullable=True)
     payload: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     undo_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow, nullable=False)

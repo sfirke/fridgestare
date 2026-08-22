@@ -2,7 +2,6 @@ import subprocess
 
 import typer
 
-from sqlalchemy import inspect
 from sqlalchemy.exc import OperationalError
 
 from app.db.base import Base
@@ -16,25 +15,7 @@ app.add_typer(system_app, name="system")
 app.add_typer(users_app, name="users")
 
 
-def detect_legacy_schema_revision(table_names: set[str], user_preferences_columns: set[str]) -> str | None:
-    if "alembic_version" in table_names or "users" not in table_names:
-        return None
-    if "leftovers_per_week" in user_preferences_columns:
-        return "20260503_0002"
-    return "20260503_0001"
-
-
 def bootstrap_alembic() -> None:
-    inspector = inspect(engine)
-    table_names = set(inspector.get_table_names())
-    user_preferences_columns: set[str] = set()
-    if "user_preferences" in table_names:
-        user_preferences_columns = {column["name"] for column in inspector.get_columns("user_preferences")}
-
-    legacy_revision = detect_legacy_schema_revision(table_names, user_preferences_columns)
-    if legacy_revision is not None:
-        subprocess.run(["alembic", "stamp", legacy_revision], check=True)
-
     subprocess.run(["alembic", "upgrade", "head"], check=True)
 
 
