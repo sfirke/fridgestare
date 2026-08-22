@@ -2,7 +2,7 @@
 
 There are good things to cook this week. You just can't think of them while you're staring into the fridge.
 
-Fridgestare is a meal-planning application for weekly dinner planning. It combines a FastAPI backend, a React/Vite frontend, deterministic weekly planning, chat-driven plan edits, optional recipe discovery, CSV export, and email summaries.
+Fridgestare is a meal-planning application for weekly dinner planning. It combines a FastAPI backend, a React/Vite frontend, weighted weekly planning, chat-driven plan edits, optional recipe discovery, CSV export, and email summaries.
 
 ## Stack
 
@@ -17,11 +17,11 @@ Fridgestare is a meal-planning application for weekly dinner planning. It combin
 - Bootstrap CLI for creating the first user
 - User preferences and recurring planning rules
 - Meal library CRUD, bulk fast-add, tags, and CSV export
-- Deterministic weekly plan generation with reroll, drag-drop move support, manual replacement, takeout slots, undo, and cooked/skipped outcome tracking
+- Weekly plan generation with reroll, drag-drop move support, manual replacement, takeout slots, undo, and cooked/skipped outcome tracking. Selection is weighted by recurrence tier, seasonal overrides, day rules, and recent history, with a random draw among close candidates so regenerating a week gives a genuinely different plan
 - Chat-based plan edits
 - Discovery suggestions with accept-into-library flow
 - Email preview and Mailgun-backed or mock delivery
-- Optional in-process scheduler for automatic plan generation and email delivery
+- Optional in-process scheduler that generates the coming week and emails it once, at the weekday and local time set in preferences
 
 ## Quick Start
 
@@ -51,9 +51,11 @@ npm install
 
 ```bash
 docker compose up --build
-docker compose exec backend python -m app.cli.main system init-db
 docker compose exec backend python -m app.cli.main users create --email sam@example.com --password tremendous-albatross --admin
 ```
+
+The backend container runs `system bootstrap-db` (`alembic upgrade head`) on start,
+so the schema is already in place by the time you create the first user.
 
 The frontend runs at `http://localhost:5173` and talks to the backend at `http://localhost:8000`.
 
@@ -67,7 +69,7 @@ DATABASE_URL=mysql+pymysql://fridgestare:fridgestare@localhost:3306/fridgestare?
 EOF
 
 docker compose up db
-cd backend && .venv/bin/python -m app.cli.main system init-db
+cd backend && .venv/bin/python -m app.cli.main system bootstrap-db
 cd backend && .venv/bin/python -m app.cli.main users create --email sam@example.com --password tremendous-albatross --admin
 cd backend && .venv/bin/python -m uvicorn app.main:app --reload
 cd frontend && npm run dev
@@ -78,8 +80,10 @@ cd frontend && npm run dev
 ## Useful Commands
 
 ```bash
+make check          # everything CI runs
 make backend-test
 make backend-lint
+make frontend-lint
 make frontend-test
 make frontend-build
 make compose-up
@@ -89,7 +93,8 @@ make compose-up
 
 - `DATABASE_URL`: backend database connection string
 - `APP_SECRET_KEY`: session signing key
-- `APP_BASE_URL`: public application URL used in email links
+- `APP_BASE_URL`: public URL of the frontend. Plan emails link to `<APP_BASE_URL>/plans/<week_start>`, an SPA route, so this points at the frontend rather than the API
+- `COOKIE_SECURE`: set to `true` when serving over HTTPS so session cookies carry the `Secure` flag
 - `OPENROUTER_API_KEY`: optional, improves chat interpretation
 - `OPENROUTER_MODEL`: optional, defaults to a small OpenRouter model
 - `TAVILY_API_KEY`: optional, enables live web-backed discovery
@@ -113,6 +118,7 @@ cd backend && .venv/bin/python -m pytest -q
 Frontend:
 
 ```bash
+cd frontend && npm run lint
 cd frontend && npm run typecheck
 cd frontend && npm run test -- --run
 cd frontend && npm run build
@@ -120,7 +126,8 @@ cd frontend && npm run build
 
 ## Notes
 
-- The scheduler is optional and safe to leave disabled for local development.
+- The scheduler is optional and safe to leave disabled for local development. When enabled it wakes every 30 minutes but only sends once the user's configured weekday and local send time have passed, and it sends a given week's plan at most once.
 - MariaDB DDL is non-transactional, so a failed `alembic upgrade` leaves partially applied DDL with `alembic_version` unchanged. For local development, recover with `docker compose down -v` and re-run.
 - Discovery and email endpoints remain usable without third-party keys; they fall back to local mock behavior.
 - Weekly planner links generated in email target `/plans/{week_start}` in the SPA.
+- `system init-db` creates tables directly with SQLAlchemy and is a convenience for throwaway local databases. Anything you intend to migrate later should be brought up with `system bootstrap-db` so Alembic owns the schema.

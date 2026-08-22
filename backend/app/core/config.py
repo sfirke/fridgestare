@@ -22,7 +22,8 @@ class Settings(BaseSettings):
         "mysql+pymysql://fridgestare:fridgestare@localhost:3306/fridgestare?charset=utf8mb4"
     )
     app_secret_key: str = "change-me-with-at-least-32-characters"
-    app_base_url: AnyHttpUrl = "http://localhost:8000"
+    # Emails link to <app_base_url>/plans/<week>, which is an SPA route.
+    app_base_url: AnyHttpUrl = "http://localhost:5173"
     access_token_expire_minutes: int = 60 * 24 * 7
     openrouter_api_key: str = ""
     openrouter_model: str = "openai/gpt-4.1-mini"
