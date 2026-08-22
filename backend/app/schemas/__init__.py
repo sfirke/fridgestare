@@ -1,7 +1,11 @@
 from app.schemas.auth import LoginRequest, LoginResponse
-from app.schemas.discovery import DiscoveryAcceptRequest, DiscoveryCandidateOut, DiscoverySuggestRequest
-from app.schemas.email import EmailPreviewOut, SendEmailResponse
 from app.schemas.chat import ChatRequest, ChatResponse
+from app.schemas.discovery import (
+    DiscoveryAcceptRequest,
+    DiscoveryCandidateOut,
+    DiscoverySuggestRequest,
+)
+from app.schemas.email import EmailPreviewOut, SendEmailResponse
 from app.schemas.meal import BulkFastAddRequest, MealCreate, MealOut, MealUpdate, TagSuggestionOut
 from app.schemas.plan import (
     GeneratePlanRequest,
@@ -33,10 +37,10 @@ __all__ = [
     "GeneratePlanRequest",
     "LoginRequest",
     "LoginResponse",
+    "MeResponse",
     "MealCreate",
     "MealOut",
     "MealUpdate",
-    "MeResponse",
     "MoveSlotRequest",
     "OutcomeStatusUpdate",
     "PlanOut",
@@ -45,11 +49,10 @@ __all__ = [
     "RecurringRuleOut",
     "RerollSlotRequest",
     "ScheduleRulesUpdate",
-    "SetSlotRequest",
     "SendEmailResponse",
+    "SetSlotRequest",
     "TagSuggestionOut",
     "UserOut",
     "UserPreferencesOut",
     "UserPreferencesUpdate",
 ]
-

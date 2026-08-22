@@ -71,7 +71,11 @@ def test_chat_endpoint_handles_complexity_request(authenticated_client: tuple) -
     assert "Friday" in payload["explanation"]
     assert "complex" in payload["explanation"].lower()
 
-    friday_slot = next(slot for slot in payload["plan"]["slots"] if date.fromisoformat(slot["slot_date"]).weekday() == 4)
+    friday_slot = next(
+        slot
+        for slot in payload["plan"]["slots"]
+        if date.fromisoformat(slot["slot_date"]).weekday() == 4
+    )
     assert friday_slot["title_snapshot"] == "Braised Short Ribs"
 
 

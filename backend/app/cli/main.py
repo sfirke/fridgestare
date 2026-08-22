@@ -1,7 +1,6 @@
 import subprocess
 
 import typer
-
 from sqlalchemy.exc import OperationalError
 
 from app.db.base import Base

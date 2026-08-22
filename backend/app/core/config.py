@@ -6,7 +6,6 @@ from typing import Annotated
 from pydantic import AnyHttpUrl, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
-
 ROOT_DIR = Path(__file__).resolve().parents[3]
 
 
@@ -19,7 +18,9 @@ class Settings(BaseSettings):
 
     app_name: str = "Fridgestare"
     api_prefix: str = "/api"
-    database_url: str = "mysql+pymysql://fridgestare:fridgestare@localhost:3306/fridgestare?charset=utf8mb4"
+    database_url: str = (
+        "mysql+pymysql://fridgestare:fridgestare@localhost:3306/fridgestare?charset=utf8mb4"
+    )
     app_secret_key: str = "change-me-with-at-least-32-characters"
     app_base_url: AnyHttpUrl = "http://localhost:8000"
     access_token_expire_minutes: int = 60 * 24 * 7
@@ -62,4 +63,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
