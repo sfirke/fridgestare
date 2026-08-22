@@ -28,5 +28,6 @@ class MailgunAdapter(ProviderAdapter):
             )
             response.raise_for_status()
             return True
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
+            # Best-effort send: any failure (network, auth, HTTP status) degrades to "not sent".
             return False

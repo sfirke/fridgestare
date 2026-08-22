@@ -7,10 +7,10 @@ from fastapi.testclient import TestClient
 TEST_DB_PATH = Path(__file__).resolve().parent / "test_app.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH}"
 
+from app.core.rate_limit import REQUEST_LOG  # noqa: E402
 from app.db.base import Base  # noqa: E402
 from app.db.session import SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
-from app.core.rate_limit import REQUEST_LOG  # noqa: E402
 from app.services.users import create_user  # noqa: E402
 
 

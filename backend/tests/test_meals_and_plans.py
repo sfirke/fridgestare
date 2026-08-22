@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date
 from types import SimpleNamespace
 
 import pytest
@@ -35,10 +35,14 @@ def create_meal(
 def test_current_planning_week_start_uses_user_timezone(monkeypatch: pytest.MonkeyPatch) -> None:
     user = SimpleNamespace(timezone="America/Los_Angeles", week_starts_on=0)
 
-    monkeypatch.setattr("app.services.plans.current_local_date", lambda timezone_name: date(2026, 5, 3))
+    monkeypatch.setattr(
+        "app.services.plans.current_local_date", lambda timezone_name: date(2026, 5, 3)
+    )
     assert current_planning_week_start(user) == date(2026, 5, 4)
 
-    monkeypatch.setattr("app.services.plans.current_local_date", lambda timezone_name: date(2026, 5, 4))
+    monkeypatch.setattr(
+        "app.services.plans.current_local_date", lambda timezone_name: date(2026, 5, 4)
+    )
     assert current_planning_week_start(user) == date(2026, 5, 4)
 
 
@@ -172,8 +176,12 @@ def test_force_regenerate_can_change_meals_with_randomized_selection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client, csrf_token = authenticated_client
-    monkeypatch.setattr("app.services.plans.current_planning_week_start", lambda user: date(2026, 5, 4))
-    monkeypatch.setattr("app.api.routes.plans.current_planning_week_start", lambda user: date(2026, 5, 4))
+    monkeypatch.setattr(
+        "app.services.plans.current_planning_week_start", lambda user: date(2026, 5, 4)
+    )
+    monkeypatch.setattr(
+        "app.api.routes.plans.current_planning_week_start", lambda user: date(2026, 5, 4)
+    )
 
     preferences = client.patch(
         "/api/me/preferences",
@@ -212,7 +220,9 @@ def test_force_regenerate_can_change_meals_with_randomized_selection(
         json={"week_start_date": "2026-05-04"},
     )
     assert generated.status_code == 200
-    generated_titles = [slot["title_snapshot"] for slot in generated.json()["slots"] if slot["slot_type"] == "meal"]
+    generated_titles = [
+        slot["title_snapshot"] for slot in generated.json()["slots"] if slot["slot_type"] == "meal"
+    ]
 
     regenerated = client.post(
         "/api/plans/generate",
@@ -220,19 +230,29 @@ def test_force_regenerate_can_change_meals_with_randomized_selection(
         json={"week_start_date": "2026-05-04", "force_regenerate": True},
     )
     assert regenerated.status_code == 200
-    regenerated_titles = [slot["title_snapshot"] for slot in regenerated.json()["slots"] if slot["slot_type"] == "meal"]
+    regenerated_titles = [
+        slot["title_snapshot"]
+        for slot in regenerated.json()["slots"]
+        if slot["slot_type"] == "meal"
+    ]
 
     assert generated_titles != regenerated_titles
 
 
-def test_plan_generation_and_mutations(authenticated_client: tuple, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_plan_generation_and_mutations(
+    authenticated_client: tuple, monkeypatch: pytest.MonkeyPatch
+) -> None:
     client, csrf_token = authenticated_client
-    monkeypatch.setattr("app.services.plans.current_planning_week_start", lambda user: date(2026, 5, 4))
-    monkeypatch.setattr("app.api.routes.plans.current_planning_week_start", lambda user: date(2026, 5, 4))
+    monkeypatch.setattr(
+        "app.services.plans.current_planning_week_start", lambda user: date(2026, 5, 4)
+    )
+    monkeypatch.setattr(
+        "app.api.routes.plans.current_planning_week_start", lambda user: date(2026, 5, 4)
+    )
 
     taco = create_meal(client, csrf_token, "Taco Soup", ["soup", "tacos"], "simple")
     roast = create_meal(client, csrf_token, "Roast Chicken", ["cozy"], "intermediate")
-    pasta = create_meal(client, csrf_token, "Pasta Primavera", ["quick"], "simple")
+    create_meal(client, csrf_token, "Pasta Primavera", ["quick"], "simple")
     create_meal(client, csrf_token, "Bean Chili", ["cozy", "beans"], "simple")
 
     preferences = client.patch(
@@ -247,8 +267,20 @@ def test_plan_generation_and_mutations(authenticated_client: tuple, monkeypatch:
         headers={"X-CSRF-Token": csrf_token},
         json={
             "rules": [
-                {"day_of_week": 1, "rule_type": "prefer_tag", "rule_payload": {"tag": "tacos"}, "priority": 1, "active": True},
-                {"day_of_week": 3, "rule_type": "takeout", "rule_payload": {}, "priority": 1, "active": True},
+                {
+                    "day_of_week": 1,
+                    "rule_type": "prefer_tag",
+                    "rule_payload": {"tag": "tacos"},
+                    "priority": 1,
+                    "active": True,
+                },
+                {
+                    "day_of_week": 3,
+                    "rule_type": "takeout",
+                    "rule_payload": {},
+                    "priority": 1,
+                    "active": True,
+                },
             ]
         },
     )
@@ -262,14 +294,14 @@ def test_plan_generation_and_mutations(authenticated_client: tuple, monkeypatch:
     assert generated.status_code == 200
     plan = generated.json()
     assert len(plan["slots"]) == 7
-    original_slot_ids = [slot["id"] for slot in plan["slots"]]
     assert any(slot["slot_type"] == "takeout" for slot in plan["slots"])
     leftovers = [slot for slot in plan["slots"] if slot["slot_type"] == "leftover"]
     assert len(leftovers) == 2
     for leftover in leftovers:
         assert leftover["meal_id"] is not None
         assert any(
-            candidate["slot_order"] < leftover["slot_order"] and candidate["meal_id"] == leftover["meal_id"]
+            candidate["slot_order"] < leftover["slot_order"]
+            and candidate["meal_id"] == leftover["meal_id"]
             for candidate in plan["slots"]
         )
 

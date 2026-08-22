@@ -26,13 +26,17 @@ class MealCreate(BaseModel):
     notes: str = ""
     complexity: str = "intermediate"
     recurrence_tier: RecurrenceTier = "regular"
-    seasonal_recurrence_overrides: list[MealSeasonalRecurrenceOverride] = Field(default_factory=list)
+    seasonal_recurrence_overrides: list[MealSeasonalRecurrenceOverride] = Field(
+        default_factory=list
+    )
     dietary_exclusions: list[str] = Field(default_factory=list)
     source_note: str = ""
     source_url: str = ""
     tags: list[str] = Field(default_factory=list)
 
-    _validate_override_seasons = field_validator("seasonal_recurrence_overrides")(_validate_unique_seasons)
+    _validate_override_seasons = field_validator("seasonal_recurrence_overrides")(
+        _validate_unique_seasons
+    )
 
 
 class BulkFastAddRequest(BaseModel):
@@ -51,7 +55,9 @@ class MealUpdate(BaseModel):
     tags: list[str] | None = None
     is_archived: bool | None = None
 
-    _validate_override_seasons = field_validator("seasonal_recurrence_overrides")(_validate_unique_seasons)
+    _validate_override_seasons = field_validator("seasonal_recurrence_overrides")(
+        _validate_unique_seasons
+    )
 
 
 class MealTagOut(BaseModel):

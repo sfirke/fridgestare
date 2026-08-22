@@ -11,7 +11,9 @@ from app.services.audit import create_activity_log
 from app.services.plans import load_plan_for_user
 
 TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
-env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), autoescape=select_autoescape(["html", "xml"]))
+env = Environment(
+    loader=FileSystemLoader(TEMPLATE_DIR), autoescape=select_autoescape(["html", "xml"])
+)
 
 
 def render_plan_email(user: User, plan) -> tuple[str, str]:

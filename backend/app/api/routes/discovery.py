@@ -4,8 +4,11 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_csrf
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.discovery import DiscoveryAcceptRequest, DiscoveryCandidateOut, DiscoverySuggestRequest
-from app.schemas.meal import MealOut
+from app.schemas.discovery import (
+    DiscoveryAcceptRequest,
+    DiscoveryCandidateOut,
+    DiscoverySuggestRequest,
+)
 from app.services.discovery import accept_candidate, candidate_to_schema, suggest_candidates
 from app.services.meals import meal_to_schema
 

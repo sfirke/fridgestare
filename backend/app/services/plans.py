@@ -3,12 +3,24 @@ from datetime import UTC, date, datetime
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
+from app.models.meal import Meal, MealTagLink
 from app.models.plan import PlanSlot, WeeklyPlan
 from app.models.user import User
 from app.schemas.plan import MoveSlotRequest, SetSlotRequest
-from app.services.audit import apply_slot_snapshot, create_activity_log, get_latest_undoable_action, serialize_slot
+from app.services.audit import (
+    apply_slot_snapshot,
+    create_activity_log,
+    get_latest_undoable_action,
+    serialize_slot,
+)
 from app.services.meals import load_meal_for_user
-from app.services.planner import compute_planning_week_start, current_local_date, generate_plan_payload, generate_slot_selection
+from app.services.planner import (
+    compute_planning_week_start,
+    current_local_date,
+    generate_plan_payload,
+    generate_slot_selection,
+    load_history,
+)
 
 
 def plan_summary_to_schema(plan: WeeklyPlan) -> dict:
@@ -129,18 +141,22 @@ def reroll_slot(session: Session, user: User, plan_id: int, slot_id: int) -> Wee
     original = serialize_slot(slot)
     preferences = user.preferences
     if preferences is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Preferences are required")
-    from app.models.meal import Meal, MealTagLink
-    from app.services.planner import load_history
-
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Preferences are required"
+        )
     meals = (
         session.query(Meal)
-        .options(joinedload(Meal.tag_links).joinedload(MealTagLink.tag), joinedload(Meal.seasonal_recurrence_overrides))
+        .options(
+            joinedload(Meal.tag_links).joinedload(MealTagLink.tag),
+            joinedload(Meal.seasonal_recurrence_overrides),
+        )
         .filter(Meal.user_id == user.id, Meal.is_archived.is_(False))
         .all()
     )
     history = load_history(session, user.id, plan.week_start_date)
-    selected_meal_ids = {item.meal_id for item in plan.slots if item.id != slot.id and item.meal_id is not None}
+    selected_meal_ids = {
+        item.meal_id for item in plan.slots if item.id != slot.id and item.meal_id is not None
+    }
     if slot.meal_id is not None:
         selected_meal_ids.add(slot.meal_id)
     slot_payload, note = generate_slot_selection(
@@ -172,7 +188,9 @@ def reroll_slot(session: Session, user: User, plan_id: int, slot_id: int) -> Wee
     return load_plan_for_user(session, user.id, plan.id)
 
 
-def move_slot_contents(session: Session, user: User, plan_id: int, payload: MoveSlotRequest) -> WeeklyPlan:
+def move_slot_contents(
+    session: Session, user: User, plan_id: int, payload: MoveSlotRequest
+) -> WeeklyPlan:
     plan = load_plan_for_user(session, user.id, plan_id)
     source = next((slot for slot in plan.slots if slot.id == payload.source_slot_id), None)
     target = next((slot for slot in plan.slots if slot.id == payload.target_slot_id), None)
@@ -207,7 +225,9 @@ def move_slot_contents(session: Session, user: User, plan_id: int, payload: Move
     return load_plan_for_user(session, user.id, plan.id)
 
 
-def set_slot_contents(session: Session, user: User, plan_id: int, payload: SetSlotRequest) -> WeeklyPlan:
+def set_slot_contents(
+    session: Session, user: User, plan_id: int, payload: SetSlotRequest
+) -> WeeklyPlan:
     plan = load_plan_for_user(session, user.id, plan_id)
     slot = next((item for item in plan.slots if item.id == payload.slot_id), None)
     if slot is None:
@@ -224,7 +244,9 @@ def set_slot_contents(session: Session, user: User, plan_id: int, payload: SetSl
         slot.selection_reason = "Manually selected by the user."
     elif payload.slot_type == "leftover":
         if payload.meal_id is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Leftovers require a meal")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Leftovers require a meal"
+            )
         meal = load_meal_for_user(session, user.id, payload.meal_id)
         slot.discovered_candidate_id = None
         slot.title_snapshot = meal.title
@@ -254,7 +276,9 @@ def set_slot_contents(session: Session, user: User, plan_id: int, payload: SetSl
     return load_plan_for_user(session, user.id, plan.id)
 
 
-def update_outcome_status(session: Session, user: User, plan_id: int, slot_id: int, outcome_status: str | None) -> WeeklyPlan:
+def update_outcome_status(
+    session: Session, user: User, plan_id: int, slot_id: int, outcome_status: str | None
+) -> WeeklyPlan:
     plan = load_plan_for_user(session, user.id, plan_id)
     slot = next((item for item in plan.slots if item.id == slot_id), None)
     if slot is None:
@@ -278,7 +302,9 @@ def undo_last_action(session: Session, user: User, plan_id: int) -> WeeklyPlan:
     plan = load_plan_for_user(session, user.id, plan_id)
     action = get_latest_undoable_action(session, user.id, plan_id)
     if action is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No undoable action available")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No undoable action available"
+        )
     slot_map = {slot.id: slot for slot in plan.slots}
     slot_map_by_date = {slot.slot_date.isoformat(): slot for slot in plan.slots}
     for snapshot in action.undo_payload.get("slots", []):

@@ -1,7 +1,7 @@
 from datetime import datetime, time
 from typing import Any
 
-from sqlalchemy import Boolean, Double, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Double, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UtcDateTime, utcnow
@@ -32,7 +32,9 @@ class User(TimestampMixin, Base):
 class UserPreferences(Base):
     __tablename__ = "user_preferences"
 
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
     novel_meal_ratio: Mapped[float] = mapped_column(Double, default=0.15, nullable=False)
     takeout_frequency_per_week: Mapped[float] = mapped_column(Double, default=1.0, nullable=False)
     leftovers_per_week: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

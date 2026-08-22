@@ -28,7 +28,9 @@ class TavilyAdapter(ProviderAdapter):
             )
             response.raise_for_status()
             payload = response.json()
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
+            # Best-effort search: any failure (network, HTTP status, bad JSON) degrades to
+            # no results.
             return []
         results = []
         for item in payload.get("results", []):
@@ -36,7 +38,9 @@ class TavilyAdapter(ProviderAdapter):
                 {
                     "title": item.get("title", query.title()),
                     "summary": item.get("content", "")[:280],
-                    "source_url": item.get("url", f"https://www.seriouseats.com/search?q={quote_plus(query)}"),
+                    "source_url": item.get(
+                        "url", f"https://www.seriouseats.com/search?q={quote_plus(query)}"
+                    ),
                 }
             )
         return results

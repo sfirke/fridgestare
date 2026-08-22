@@ -106,5 +106,3 @@ def delete_meal(
 ) -> Response:
     archive_meal(session, current_user.id, meal_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-

@@ -16,7 +16,9 @@ def validate_timezone_name(timezone: str) -> str:
     try:
         ZoneInfo(candidate)
     except ZoneInfoNotFoundError as error:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid timezone") from error
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid timezone"
+        ) from error
     return candidate
 
 
@@ -76,7 +78,9 @@ def create_user(
     return user
 
 
-def update_preferences(session: Session, user: User, payload: UserPreferencesUpdate) -> UserPreferences:
+def update_preferences(
+    session: Session, user: User, payload: UserPreferencesUpdate
+) -> UserPreferences:
     preferences = ensure_preferences(session, user)
     for field_name, value in payload.model_dump(exclude_unset=True).items():
         if field_name == "timezone":
@@ -112,4 +116,9 @@ def replace_recurring_rules(
     ]
     session.add_all(new_rules)
     session.commit()
-    return session.query(RecurringRule).filter(RecurringRule.user_id == user.id).order_by(RecurringRule.day_of_week, RecurringRule.priority).all()
+    return (
+        session.query(RecurringRule)
+        .filter(RecurringRule.user_id == user.id)
+        .order_by(RecurringRule.day_of_week, RecurringRule.priority)
+        .all()
+    )
