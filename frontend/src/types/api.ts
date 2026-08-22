@@ -10,7 +10,6 @@ export type User = {
 };
 
 export type UserPreferences = {
-  novel_meal_ratio: number;
   takeout_frequency_per_week: number;
   leftovers_per_week: number;
   allow_simple: boolean;
@@ -54,6 +53,12 @@ export type SeasonName = 'winter' | 'spring' | 'summer' | 'fall';
 
 export type RecurrenceTier = 'none' | 'treat' | 'regular' | 'staple';
 
+export type MealComplexity = 'simple' | 'intermediate' | 'complex';
+
+export type SlotType = 'meal' | 'takeout' | 'leftover' | 'empty';
+
+export type OutcomeStatus = 'cooked' | 'skipped';
+
 export type MealSeasonalRecurrenceOverride = {
   season: SeasonName;
   recurrence_tier: RecurrenceTier;
@@ -64,7 +69,7 @@ export type Meal = {
   title: string;
   notes: string;
   meal_type: string;
-  complexity: string;
+  complexity: MealComplexity;
   recurrence_tier: RecurrenceTier;
   seasonal_recurrence_overrides: MealSeasonalRecurrenceOverride[];
   dietary_exclusions: string[];
@@ -81,13 +86,13 @@ export type PlanSlot = {
   id: number;
   slot_date: string;
   slot_order: number;
-  slot_type: string;
+  slot_type: SlotType;
   meal_id: number | null;
   discovered_candidate_id: number | null;
   title_snapshot: string;
   notes_snapshot: string;
   selection_reason: string;
-  outcome_status: string | null;
+  outcome_status: OutcomeStatus | null;
   outcome_logged_at: string | null;
 };
 
@@ -112,7 +117,7 @@ export type DiscoveryCandidate = {
   title: string;
   summary: string;
   source_url: string;
-  complexity: string;
+  complexity: MealComplexity;
   reasoning: string;
   accepted_meal_id: number | null;
   created_at: string;
