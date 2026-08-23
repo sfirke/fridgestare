@@ -2,8 +2,10 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-COPY frontend/package.json /app/package.json
-RUN npm install
+# Copy the lockfile and install from it. Without this the image resolved fresh
+# versions on every build, so what ran in Compose could drift from CI.
+COPY frontend/package.json frontend/package-lock.json /app/
+RUN npm ci
 
 COPY frontend /app
 

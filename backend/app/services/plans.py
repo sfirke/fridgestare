@@ -9,6 +9,7 @@ from app.models.user import User
 from app.schemas.plan import MoveSlotRequest, SetSlotRequest
 from app.services.audit import (
     apply_slot_snapshot,
+    clear_undo_history,
     create_activity_log,
     get_latest_undoable_action,
     serialize_slot,
@@ -123,6 +124,7 @@ def generate_week_plan(
         plan = existing
         plan.slots.clear()
         session.flush()
+        clear_undo_history(session, user.id, plan.id)
         plan.generation_source = generation_source
         plan.planner_explanation = explanation
     for payload in slot_payloads:
@@ -306,9 +308,8 @@ def undo_last_action(session: Session, user: User, plan_id: int) -> WeeklyPlan:
             status_code=status.HTTP_404_NOT_FOUND, detail="No undoable action available"
         )
     slot_map = {slot.id: slot for slot in plan.slots}
-    slot_map_by_date = {slot.slot_date.isoformat(): slot for slot in plan.slots}
     for snapshot in action.undo_payload.get("slots", []):
-        slot = slot_map.get(snapshot["id"]) or slot_map_by_date.get(snapshot.get("slot_date"))
+        slot = slot_map.get(snapshot["id"])
         if slot is not None:
             apply_slot_snapshot(slot, snapshot)
     action.undo_payload = None

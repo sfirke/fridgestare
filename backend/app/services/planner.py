@@ -1,9 +1,9 @@
 import random
 from datetime import UTC, date, datetime, timedelta
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.timezones import resolve_timezone
 from app.models.meal import Meal, MealTagLink
 from app.models.plan import PlanSlot, WeeklyPlan
 from app.models.user import RecurringRule, User, UserPreferences
@@ -31,11 +31,7 @@ def compute_week_start(reference_date: date, week_starts_on: int) -> date:
 
 
 def current_local_date(timezone_name: str, now: datetime | None = None) -> date:
-    try:
-        timezone = ZoneInfo(timezone_name)
-    except ZoneInfoNotFoundError:
-        timezone = ZoneInfo("UTC")
-
+    timezone = resolve_timezone(timezone_name)
     current_moment = now or datetime.now(tz=UTC)
     if current_moment.tzinfo is None:
         current_moment = current_moment.replace(tzinfo=UTC)
@@ -44,10 +40,6 @@ def current_local_date(timezone_name: str, now: datetime | None = None) -> date:
 
 def compute_planning_week_start(reference_date: date, week_starts_on: int) -> date:
     return compute_week_start(reference_date + timedelta(days=1), week_starts_on)
-
-
-def compute_next_week_start(reference_date: date, week_starts_on: int) -> date:
-    return compute_week_start(reference_date, week_starts_on) + timedelta(days=7)
 
 
 def load_history(session: Session, user_id: int, before_week: date) -> list[PlanSlot]:

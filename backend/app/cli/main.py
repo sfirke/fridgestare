@@ -59,9 +59,13 @@ def create_user_command(
             week_starts_on=week_starts_on,
         )
     except OperationalError as exc:
+        typer.echo(
+            "Could not reach the database. Check DATABASE_URL and that the server is up.",
+            err=True,
+        )
         raise typer.Exit(code=1) from exc
     except Exception as exc:  # pragma: no cover - CLI fallback
-        typer.echo(str(exc))
+        typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
     finally:
         session.close()

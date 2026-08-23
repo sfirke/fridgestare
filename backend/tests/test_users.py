@@ -5,7 +5,6 @@ def test_patch_preferences(authenticated_client: tuple) -> None:
         "/api/me/preferences",
         headers={"X-CSRF-Token": csrf_token},
         json={
-            "novel_meal_ratio": 0.4,
             "takeout_frequency_per_week": 2,
             "leftovers_per_week": 2,
             "planning_guidance_text": "Tuesday tacos.",
@@ -16,7 +15,6 @@ def test_patch_preferences(authenticated_client: tuple) -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["novel_meal_ratio"] == 0.4
     assert payload["takeout_frequency_per_week"] == 2
     assert payload["leftovers_per_week"] == 2
     assert payload["planning_guidance_text"] == "Tuesday tacos."

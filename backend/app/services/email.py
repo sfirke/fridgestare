@@ -5,23 +5,23 @@ from sqlalchemy.orm import Session
 
 from app.clients.mailgun import MailgunAdapter
 from app.core.config import get_settings
-from app.core.security import create_access_token
 from app.models.user import User
 from app.services.audit import create_activity_log
 from app.services.plans import load_plan_for_user
 
 TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
-env = Environment(
+TEMPLATE_ENV = Environment(
     loader=FileSystemLoader(TEMPLATE_DIR), autoescape=select_autoescape(["html", "xml"])
 )
 
 
 def render_plan_email(user: User, plan) -> tuple[str, str]:
     settings = get_settings()
-    token = create_access_token(user.id, expires_minutes=60 * 24 * 7)
-    link = f"{settings.app_base_url}/plans/{plan.week_start_date}?token={token}"
+    # AnyHttpUrl normalizes a bare host to a trailing slash, so strip it before joining.
+    base_url = str(settings.app_base_url).rstrip("/")
+    link = f"{base_url}/plans/{plan.week_start_date}"
     subject = f"Your Fridgestare plan for {plan.week_start_date.isoformat()}"
-    html = env.get_template("plan_email.html").render(user=user, plan=plan, link=link)
+    html = TEMPLATE_ENV.get_template("plan_email.html").render(user=user, plan=plan, link=link)
     return subject, html
 
 

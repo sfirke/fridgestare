@@ -8,29 +8,28 @@ version = "0.1.0"
 description = "Backend API for Fridgestare"
 requires-python = ">=3.12"
 dependencies = [
-  "alembic>=1.15.2",
-  "apscheduler>=3.11.0",
-  "argon2-cffi>=23.1.0",
-  "email-validator>=2.2.0",
-  "fastapi>=0.115.12",
+  "alembic>=1.19.1",
+  "apscheduler>=3.11.3",
+  "argon2-cffi>=25.1.0",
+  "email-validator>=2.3.0",
+  "fastapi>=0.141.1",
   "httpx>=0.28.1",
   "jinja2>=3.1.6",
-  "passlib>=1.7.4",
-  "pydantic-settings>=2.9.1",
-  "pyjwt>=2.10.1",
-  "pymysql>=1.1.1",
-  "python-multipart>=0.0.20",
-  "sqlalchemy>=2.0.40",
-  "typer>=0.15.3",
-  "uvicorn[standard]>=0.34.2",
+  "pydantic-settings>=2.15.0",
+  "pyjwt>=2.13.0",
+  "pymysql>=1.2.0",
+  "python-multipart>=0.0.32",
+  "sqlalchemy>=2.0.52",
+  "typer>=0.27.1",
+  "uvicorn[standard]>=0.52.4",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "pylint>=3.3.7",
-  "pytest>=8.3.5",
-  "pytest-cov>=6.1.1",
-  "ruff>=0.11.8",
+  "pylint>=4.0.7",
+  "pytest>=9.1.1",
+  "pytest-cov>=7.1.0",
+  "ruff>=0.16.4,<0.17",
 ]
 
 [project.scripts]

@@ -35,7 +35,6 @@ class UserPreferences(Base):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
-    novel_meal_ratio: Mapped[float] = mapped_column(Double, default=0.15, nullable=False)
     takeout_frequency_per_week: Mapped[float] = mapped_column(Double, default=1.0, nullable=False)
     leftovers_per_week: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     allow_simple: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

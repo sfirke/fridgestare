@@ -1,24 +1,20 @@
 from datetime import UTC, datetime, time
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.security import hash_password
+from app.core.timezones import is_valid_timezone
 from app.models.user import RecurringRule, User, UserPreferences
 from app.schemas.user import RecurringRuleIn, UserPreferencesUpdate
-from app.services.auth import create_user_password_hash
 
 
 def validate_timezone_name(timezone: str) -> str:
     candidate = timezone.strip()
     if not candidate:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Timezone is required")
-    try:
-        ZoneInfo(candidate)
-    except ZoneInfoNotFoundError as error:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid timezone"
-        ) from error
+    if not is_valid_timezone(candidate):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid timezone")
     return candidate
 
 
@@ -49,7 +45,7 @@ def create_user(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
     user = User(
         email=email.strip().lower(),
-        password_hash=create_user_password_hash(password),
+        password_hash=hash_password(password),
         is_admin=is_admin,
         timezone=validate_timezone_name(timezone),
         week_starts_on=week_starts_on,
@@ -59,7 +55,6 @@ def create_user(
     session.add(
         UserPreferences(
             user_id=user.id,
-            novel_meal_ratio=0.15,
             takeout_frequency_per_week=1.0,
             leftovers_per_week=0,
             allow_simple=True,

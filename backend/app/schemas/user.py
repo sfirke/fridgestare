@@ -20,7 +20,6 @@ class UserOut(BaseModel):
 class UserPreferencesOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    novel_meal_ratio: float
     takeout_frequency_per_week: float
     leftovers_per_week: int
     allow_simple: bool
@@ -35,7 +34,6 @@ class UserPreferencesOut(BaseModel):
 
 
 class UserPreferencesUpdate(BaseModel):
-    novel_meal_ratio: float | None = Field(default=None, ge=0, le=1)
     takeout_frequency_per_week: float | None = Field(default=None, ge=0, le=7)
     leftovers_per_week: int | None = Field(default=None, ge=0, le=7)
     allow_simple: bool | None = None

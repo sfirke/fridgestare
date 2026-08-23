@@ -5,8 +5,10 @@ import type {
   EmailSendResponse,
   LoginResponse,
   Meal,
+  MealComplexity,
   MeResponse,
   Plan,
+  OutcomeStatus,
   PlanSummary,
   RecurringRule,
   UserPreferences,
@@ -31,6 +33,54 @@ function readCookie(name: string): string | null {
   return cookie ? decodeURIComponent(cookie.split('=').slice(1).join('=')) : null;
 }
 
+/**
+ * Turn an error response into something worth showing a person.
+ *
+ * FastAPI answers a 422 with `detail` as an array of validation objects; passing that
+ * straight to `new Error` rendered "[object Object]" in the banner.
+ */
+async function readErrorMessage(response: Response): Promise<string> {
+  const fallback = response.statusText || `Request failed (${response.status})`;
+  const contentType = response.headers.get('content-type') ?? '';
+
+  if (!contentType.includes('application/json')) {
+    const body = await response.text().catch(() => '');
+    return body.trim() || fallback;
+  }
+
+  const payload = await response.json().catch(() => null);
+  const detail = (payload as { detail?: unknown } | null)?.detail;
+
+  if (typeof detail === 'string' && detail.trim()) {
+    return detail;
+  }
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((entry) => describeValidationError(entry))
+      .filter((entry): entry is string => Boolean(entry));
+    if (messages.length) {
+      return messages.join('; ');
+    }
+  }
+  return fallback;
+}
+
+function describeValidationError(entry: unknown): string | null {
+  if (typeof entry === 'string') {
+    return entry;
+  }
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  const { loc, msg } = entry as { loc?: unknown; msg?: unknown };
+  if (typeof msg !== 'string') {
+    return null;
+  }
+  // `loc` looks like ['body', 'email']; the leading source is noise to a reader.
+  const field = Array.isArray(loc) ? loc.filter((part) => typeof part === 'string').slice(1) : [];
+  return field.length ? `${field.join('.')}: ${msg}` : msg;
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers();
   if (options.includeCsrf) {
@@ -51,11 +101,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   });
 
   if (!response.ok) {
-    const contentType = response.headers.get('content-type') ?? '';
-    const detail = contentType.includes('application/json')
-      ? (await response.json()).detail ?? response.statusText
-      : await response.text();
-    throw new Error(detail || response.statusText);
+    throw new Error(await readErrorMessage(response));
   }
 
   if (response.status === 204) {
@@ -100,7 +146,12 @@ export const api = {
       includeCsrf: true,
     });
   },
-  listMeals(params?: { includeArchived?: boolean; complexity?: string; recurrenceTier?: string; tag?: string }) {
+  listMeals(params?: {
+    includeArchived?: boolean;
+    complexity?: MealComplexity;
+    recurrenceTier?: string;
+    tag?: string;
+  }) {
     const search = new URLSearchParams();
     if (params?.includeArchived) search.set('include_archived', 'true');
     if (params?.complexity) search.set('complexity', params.complexity);
@@ -176,7 +227,7 @@ export const api = {
   undoPlan(planId: number) {
     return request<Plan>(`/plans/${planId}/undo`, { method: 'POST', includeCsrf: true });
   },
-  updateOutcome(planId: number, slotId: number, outcomeStatus: string | null) {
+  updateOutcome(planId: number, slotId: number, outcomeStatus: OutcomeStatus | null) {
     return request<Plan>(`/plans/${planId}/slots/${slotId}/outcome-status`, {
       method: 'POST',
       body: { outcome_status: outcomeStatus },

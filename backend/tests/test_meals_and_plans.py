@@ -394,3 +394,73 @@ def test_plan_generation_and_mutations(
     current = client.get("/api/plans/current")
     assert current.status_code == 200
     assert current.json()["week_start_date"] == "2026-05-04"
+
+
+def test_regenerating_a_week_discards_stale_undo_snapshots(authenticated_client: tuple) -> None:
+    """Undo snapshots describe slot rows that regeneration replaces.
+
+    Before this was handled, undoing after a regenerate matched the old snapshot back
+    onto the new week by date and resurrected a pre-regeneration meal.
+    """
+    client, csrf_token = authenticated_client
+    for title in ("Tomato Soup", "Tuesday Tacos", "Roast Fish", "Lentil Stew"):
+        create_meal(client, csrf_token, title, ["cozy"], complexity="simple")
+
+    generated = client.post(
+        "/api/plans/generate",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"week_start_date": "2026-05-04"},
+    )
+    assert generated.status_code == 200
+    plan = generated.json()
+
+    # Record an undoable edit against the original slots.
+    marked_takeout = client.post(
+        f"/api/plans/{plan['id']}/set-slot",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"slot_id": plan["slots"][0]["id"], "slot_type": "takeout"},
+    )
+    assert marked_takeout.status_code == 200
+
+    regenerated = client.post(
+        "/api/plans/generate",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"week_start_date": "2026-05-04", "force_regenerate": True},
+    )
+    assert regenerated.status_code == 200
+
+    undo = client.post(f"/api/plans/{plan['id']}/undo", headers={"X-CSRF-Token": csrf_token})
+    assert undo.status_code == 404
+    assert undo.json()["detail"] == "No undoable action available"
+
+
+def test_undo_is_consumed_and_cannot_be_replayed(authenticated_client: tuple) -> None:
+    """A consumed undo entry must not be handed out again.
+
+    Storing None into the JSON column previously wrote the JSON value `null` rather
+    than SQL NULL, so the second undo re-selected the spent entry and raised.
+    """
+    client, csrf_token = authenticated_client
+    for title in ("Tomato Soup", "Tuesday Tacos", "Roast Fish"):
+        create_meal(client, csrf_token, title, ["cozy"], complexity="simple")
+
+    generated = client.post(
+        "/api/plans/generate",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"week_start_date": "2026-05-04"},
+    )
+    plan = generated.json()
+    original_title = plan["slots"][0]["title_snapshot"]
+
+    client.post(
+        f"/api/plans/{plan['id']}/set-slot",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"slot_id": plan["slots"][0]["id"], "slot_type": "takeout"},
+    )
+
+    first_undo = client.post(f"/api/plans/{plan['id']}/undo", headers={"X-CSRF-Token": csrf_token})
+    assert first_undo.status_code == 200
+    assert first_undo.json()["slots"][0]["title_snapshot"] == original_title
+
+    second_undo = client.post(f"/api/plans/{plan['id']}/undo", headers={"X-CSRF-Token": csrf_token})
+    assert second_undo.status_code == 404

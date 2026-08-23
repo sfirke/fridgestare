@@ -1,9 +1,11 @@
 import os
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
+# Set before importing anything that builds the engine at module scope.
 TEST_DB_PATH = Path(__file__).resolve().parent / "test_app.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH}"
 
@@ -12,6 +14,13 @@ from app.db.base import Base  # noqa: E402
 from app.db.session import SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.services.users import create_user  # noqa: E402
+
+
+@pytest.fixture(scope="session", autouse=True)
+def remove_test_database_file() -> Iterator[None]:
+    """Keep the scratch SQLite file from being left behind in the source tree."""
+    yield
+    TEST_DB_PATH.unlink(missing_ok=True)
 
 
 @pytest.fixture(autouse=True)

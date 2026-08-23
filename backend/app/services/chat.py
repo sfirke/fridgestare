@@ -128,7 +128,7 @@ def apply_chat_message(  # pylint: disable=too-many-locals,too-many-return-state
                 requested_complexity = candidate
                 break
 
-    if "swap" in lowered and len(days) >= 2:
+    if ("swap" in lowered or "move" in lowered) and len(days) >= 2:
         source = slot_for_day(plan, days[0])
         target = slot_for_day(plan, days[1])
         if source and target:
@@ -138,21 +138,8 @@ def apply_chat_message(  # pylint: disable=too-many-locals,too-many-return-state
                 plan_id,
                 MoveSlotRequest(source_slot_id=source.id, target_slot_id=target.id),
             )
-            return plan_to_schema(updated), f"Swapped {days[0].title()} and {days[1].title()}."
-
-    if ("move" in lowered or "swap" in lowered) and len(days) >= 2:
-        source = slot_for_day(plan, days[0])
-        target = slot_for_day(plan, days[1])
-        if source and target:
-            updated = move_slot_contents(
-                session,
-                user,
-                plan_id,
-                MoveSlotRequest(source_slot_id=source.id, target_slot_id=target.id),
-            )
-            return plan_to_schema(
-                updated
-            ), f"Moved the {days[0].title()} meal onto {days[1].title()}."
+            verb = "Swapped" if "swap" in lowered else "Moved"
+            return plan_to_schema(updated), f"{verb} {days[0].title()} and {days[1].title()}."
 
     if "takeout" in lowered and days:
         slot = slot_for_day(plan, days[0])
