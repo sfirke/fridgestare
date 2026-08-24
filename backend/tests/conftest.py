@@ -8,6 +8,13 @@ from fastapi.testclient import TestClient
 # Set before importing anything that builds the engine at module scope.
 TEST_DB_PATH = Path(__file__).resolve().parent / "test_app.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH}"
+# Settings still reads the repo-root .env, so pin what the suite depends on rather than
+# inheriting a developer's local file. A production-shaped .env sets COOKIE_SECURE=true,
+# and the TestClient speaks http, so the CSRF cookie is never stored and every mutating
+# request fails with a 403 that has nothing to do with the code under test.
+os.environ["APP_ENV"] = "development"
+os.environ["COOKIE_SECURE"] = "false"
+os.environ["APP_BASE_URL"] = "http://localhost:5173"
 
 from app.core.rate_limit import REQUEST_LOG  # noqa: E402
 from app.db.base import Base  # noqa: E402

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_csrf
+from app.clients.mailgun import MailgunDeliveryError
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.email import EmailPreviewOut, SendEmailResponse
@@ -150,7 +151,14 @@ def post_send_email(
     session: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> SendEmailResponse:
-    delivery_mode, _ = send_plan_email(session, current_user, plan_id)
+    try:
+        delivery_mode, _ = send_plan_email(session, current_user, plan_id)
+    except MailgunDeliveryError as exc:
+        # The plan is unchanged and nothing was logged as sent, so a retry is safe.
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Email delivery failed: {exc}",
+        ) from exc
     return SendEmailResponse(status="queued", delivery_mode=delivery_mode)
 
 

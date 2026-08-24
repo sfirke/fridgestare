@@ -48,7 +48,7 @@ def deliver_scheduled_email(session: Session, user: User) -> bool:
     if plan_email_already_sent(session, user.id, plan.id):
         return False
 
-    send_plan_email(session, user, plan.id)
+    send_plan_email(session, user, plan.id, actor_type="scheduler")
     return True
 
 
@@ -79,5 +79,15 @@ def initialize_scheduler() -> BackgroundScheduler | None:
         minutes=CHECK_INTERVAL_MINUTES,
         id="fridgestare_scheduled_generation",
         replace_existing=True,
+        # The scheduler lives in the API process, so it must never stack runs: two
+        # overlapping ticks would both see an unsent plan and both send it. Ticks
+        # missed while the process was down are dropped rather than replayed.
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=CHECK_INTERVAL_MINUTES * 60,
+    )
+    logger.info(
+        "Scheduler enabled; checking every %s minutes for plans due to send.",
+        CHECK_INTERVAL_MINUTES,
     )
     return scheduler

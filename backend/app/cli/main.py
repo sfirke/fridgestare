@@ -5,7 +5,7 @@ from sqlalchemy.exc import OperationalError
 
 from app.db.base import Base
 from app.db.session import SessionLocal, engine
-from app.services.users import create_user
+from app.services.users import create_user, list_users, set_user_password
 
 app = typer.Typer(help="Fridgestare management commands.")
 system_app = typer.Typer(help="System commands.")
@@ -70,6 +70,60 @@ def create_user_command(
     finally:
         session.close()
     typer.echo(f"created user {user.email}")
+
+
+@users_app.command("set-password")
+def set_password_command(
+    email: str = typer.Option(...),
+    password: str = typer.Option(..., prompt=True, hide_input=True, confirmation_prompt=True),
+) -> None:
+    """Rotate a user's password.
+
+    The bootstrap password is typed on a command line and lands in shell history, so
+    there has to be a way to change it that is not a hand-written UPDATE.
+    """
+    session = SessionLocal()
+    try:
+        user = set_user_password(session, email=email, password=password)
+    except OperationalError as exc:
+        typer.echo(
+            "Could not reach the database. Check DATABASE_URL and that the server is up.",
+            err=True,
+        )
+        raise typer.Exit(code=1) from exc
+    except Exception as exc:  # pragma: no cover - CLI fallback
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    finally:
+        session.close()
+    typer.echo(f"updated password for {user.email}")
+
+
+@users_app.command("list")
+def list_users_command() -> None:
+    """List accounts, so you can confirm what a deployment actually has."""
+    session = SessionLocal()
+    try:
+        users = list_users(session)
+    except OperationalError as exc:
+        typer.echo(
+            "Could not reach the database. Check DATABASE_URL and that the server is up.",
+            err=True,
+        )
+        raise typer.Exit(code=1) from exc
+    finally:
+        session.close()
+    if not users:
+        typer.echo("no users yet")
+        return
+    for user in users:
+        flags = []
+        if user.is_admin:
+            flags.append("admin")
+        if not user.is_active:
+            flags.append("inactive")
+        suffix = f" [{', '.join(flags)}]" if flags else ""
+        typer.echo(f"{user.id}\t{user.email}\t{user.timezone}{suffix}")
 
 
 if __name__ == "__main__":

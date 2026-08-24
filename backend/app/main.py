@@ -15,12 +15,21 @@ if not app_logger.handlers:
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter("%(levelname)s [%(name)s] %(message)s"))
     app_logger.addHandler(handler)
-app_logger.setLevel(logging.INFO)
+app_logger.setLevel(settings.log_level.upper())
 app_logger.propagate = False
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    app_logger.info(
+        "Starting %s in %s mode (scheduler=%s, mailgun=%s, openrouter=%s, tavily=%s).",
+        settings.app_name,
+        settings.app_env,
+        "on" if settings.scheduler_enabled else "off",
+        "configured" if settings.mailgun_configured else "mock",
+        "configured" if settings.openrouter_api_key.strip() else "fallback",
+        "configured" if settings.tavily_api_key.strip() else "fallback",
+    )
     scheduler = initialize_scheduler()
     if scheduler is not None:
         scheduler.start()
@@ -31,7 +40,13 @@ async def lifespan(_: FastAPI):
             scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title=settings.app_name, lifespan=lifespan)
+app = FastAPI(
+    title=settings.app_name,
+    lifespan=lifespan,
+    docs_url=settings.docs_url,
+    redoc_url=None,
+    openapi_url=settings.openapi_url,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.backend_cors_origins,
@@ -44,4 +59,7 @@ app.include_router(api_router, prefix=settings.api_prefix)
 
 @app.get("/")
 def root() -> dict[str, str]:
-    return {"name": settings.app_name, "docs": "/docs"}
+    payload = {"name": settings.app_name}
+    if settings.docs_url:
+        payload["docs"] = settings.docs_url
+    return payload
