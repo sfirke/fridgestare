@@ -117,3 +117,18 @@ def replace_recurring_rules(
         .order_by(RecurringRule.day_of_week, RecurringRule.priority)
         .all()
     )
+
+
+def set_user_password(session: Session, email: str, password: str) -> User:
+    user = get_user_by_email(session, email)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    user.password_hash = hash_password(password)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+def list_users(session: Session) -> list[User]:
+    return session.query(User).order_by(User.email).all()

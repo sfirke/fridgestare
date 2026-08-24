@@ -23,6 +23,9 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      # The dev target keeps the test and lint extras and stays root-owned so the
+      # bind-mounted source is writable; docker-compose.prod.yml builds `runtime`.
+      target: dev
     env_file:
       - .env
     volumes:

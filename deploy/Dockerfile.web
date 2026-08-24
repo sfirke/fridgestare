@@ -1,0 +1,16 @@
+# Builds the SPA and bakes it into a Caddy image that also terminates TLS and
+# proxies /api to the backend. The bundle talks to a same-origin /api, so nothing
+# environment-specific is compiled in and one image works for any hostname.
+FROM node:22-alpine AS build
+
+WORKDIR /app
+COPY frontend/package.json frontend/package-lock.json /app/
+RUN npm ci
+COPY frontend /app
+RUN npm run build
+
+
+FROM caddy:2-alpine
+
+COPY deploy/Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /app/dist /srv

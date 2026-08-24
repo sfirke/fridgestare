@@ -1,0 +1,44 @@
+# Fridgestare edge. One origin serves the SPA and the API, which is what lets the
+# session cookie stay SameSite=Lax with no CORS configuration at all.
+#
+# SITE_ADDRESS is the public hostname (e.g. fridgestare.example.com). Caddy fetches
+# and renews a Let's Encrypt certificate for it automatically. For a local smoke test
+# of this stack, set SITE_ADDRESS to ":80" and no certificate is attempted.
+{
+	email {$ACME_EMAIL:admin@example.com}
+	admin off
+}
+
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# Two allowances, both load-bearing and both verified in a browser:
+		# 'unsafe-inline' for styles, because the email preview renders the plan email
+		# in a sandboxed srcdoc iframe and that template styles inline the way mail
+		# clients need; and the Google Fonts hosts, which styles.css imports. Drop the
+		# font hosts only alongside self-hosting the two families. Scripts stay
+		# locked to same-origin.
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+	}
+
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		root * /srv
+		# The planner pushes /plans/<week> into history and plan emails link straight
+		# there, so every unmatched path has to fall back to the SPA shell.
+		try_files {path} /index.html
+		file_server
+	}
+
+	log {
+		output stdout
+	}
+}

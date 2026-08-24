@@ -1,3 +1,11 @@
+import pytest
+from fastapi import HTTPException
+
+from app.core.security import verify_password
+from app.db.session import SessionLocal
+from app.services.users import create_user, set_user_password
+
+
 def test_patch_preferences(authenticated_client: tuple) -> None:
     client, csrf_token = authenticated_client
 
@@ -57,3 +65,26 @@ def test_replace_schedule_rules(authenticated_client: tuple) -> None:
     assert len(payload) == 2
     assert payload[0]["rule_type"] == "prefer_tag"
     assert payload[1]["rule_type"] == "takeout"
+
+
+def test_set_user_password_replaces_the_credential() -> None:
+    """Rotating the bootstrap password must invalidate the old one."""
+    session = SessionLocal()
+    try:
+        create_user(session, email="rotate@example.com", password="first-password")
+        user = set_user_password(session, email="rotate@example.com", password="second-password")
+
+        assert verify_password("second-password", user.password_hash) is True
+        assert verify_password("first-password", user.password_hash) is False
+    finally:
+        session.close()
+
+
+def test_set_user_password_rejects_an_unknown_email() -> None:
+    session = SessionLocal()
+    try:
+        with pytest.raises(HTTPException) as excinfo:
+            set_user_password(session, email="nobody@example.com", password="whatever")
+        assert excinfo.value.status_code == 404
+    finally:
+        session.close()

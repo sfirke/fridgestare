@@ -1,5 +1,10 @@
 from datetime import date
 
+from app.clients.mailgun import MailgunDeliveryError
+from app.db.session import SessionLocal
+from app.services import email as email_service
+from app.services.audit import plan_email_already_sent
+
 
 def setup_plan(client, csrf_token: str):
     client.post(
@@ -111,3 +116,38 @@ def test_plan_email_links_to_the_spa_without_a_credential(authenticated_client: 
     assert "token=" not in html
     assert f'/plans/{plan["week_start_date"]}"' in html
     assert "//plans/" not in html  # the base URL's trailing slash used to double up
+
+
+def test_send_email_reports_a_delivery_failure_instead_of_claiming_success(
+    authenticated_client: tuple, monkeypatch
+) -> None:
+    """A configured-but-failing Mailgun must surface as an error, not a mock send.
+
+    It also must not write a send_email activity row, because that row is what tells
+    the scheduler this week is done; recording one would mean the week is never sent.
+    """
+    client, csrf_token = authenticated_client
+    plan = setup_plan(client, csrf_token)
+
+    class FailingAdapter:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def send(self, *_args, **_kwargs):
+            raise MailgunDeliveryError("Mailgun returned HTTP 401: Forbidden")
+
+    monkeypatch.setattr(email_service, "MailgunAdapter", FailingAdapter)
+
+    response = client.post(
+        f"/api/plans/{plan['id']}/send-email",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 502
+    assert "Email delivery failed" in response.json()["detail"]
+
+    session = SessionLocal()
+    try:
+        assert plan_email_already_sent(session, 1, plan["id"]) is False
+    finally:
+        session.close()
